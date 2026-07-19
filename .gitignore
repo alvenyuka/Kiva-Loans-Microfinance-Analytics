@@ -1,0 +1,19 @@
+# Data
+data/
+*.csv
+*.parquet
+*.xlsx
+
+# Notebook checkpoints / caches
+.ipynb_checkpoints/
+__pycache__/
+*.pyc
+
+# Environments
+venv/
+.venv/
+.env
+
+# OS
+.DS_Store
+Thumbs.db
