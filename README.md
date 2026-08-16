@@ -108,3 +108,15 @@ jupyter nbconvert --to notebook --execute Kiva_Loans_Microfinance_Analytics.ipyn
 
 The two source CSVs (`kiva_loans.csv` and `kiva_mpi_region_locations.csv`, see Data
 above) must be placed in `../Data/Kiva/` relative to this folder before running.
+
+## License
+
+MIT — see [`LICENSE`](LICENSE).
+
+## Credits
+
+Author: **Alven Yuka** — CPA Finalist (Kenya). Built on the [Kiva Loans / MPI dataset](https://www.kaggle.com/datasets/kiva/data-science-for-good-kiva-crowdfunding) (Kaggle).
+
+## Connect
+
+📫 [alvenyuka2@gmail.com](mailto:alvenyuka2@gmail.com) · 💼 [LinkedIn](https://www.linkedin.com/in/alven-yuka-610b78174/) · 🐙 [GitHub](https://github.com/alvenyuka)
