@@ -1,15 +1,59 @@
 # Kiva Loans Microfinance Analytics
 
-**Which loans are at risk of not getting fully funded -- and does that risk fall hardest
-on the poorest regions?** This notebook analyzes 671k+ real microloans from Kiva's public
-dataset (Kaggle's "Data Science for Good: Kiva Crowdfunding"), combining exploratory
-analysis, text mining of loan-use descriptions, a geospatial join against a
-region-level poverty index, a funding-risk classification model explained with SHAP,
-a days-to-fund regression, and a synthesis identifying regions that are both
-poverty-deep and funding-at-risk. All findings are correlational, not causal --
-this is a single-snapshot dataset.
+> Funding-risk model on 671,205 real Kiva microloans: which loans are at risk of not being funded, and does that risk fall hardest on the poorest regions? LightGBM reaches 0.4889 PR-AUC on the at-risk minority class, explained with SHAP.
 
-## Data
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/Python-3776AB?style=flat&logo=python&logoColor=white)](#tech-stack)
+[![LightGBM](https://img.shields.io/badge/LightGBM-02569B?style=flat)](#tech-stack)
+[![PR-AUC (at-risk)](https://img.shields.io/badge/PR--AUC%20(at--risk)-0.4889-success)](#results)
+
+## Why?
+
+**Which loans are at risk of not getting fully funded — and does that risk fall hardest on the poorest regions?** This notebook analyzes 671k+ real microloans from Kiva's public dataset (Kaggle's "Data Science for Good: Kiva Crowdfunding"), combining exploratory analysis, text mining of loan-use descriptions, a geospatial join against a region-level poverty index, a funding-risk classification model explained with SHAP, a days-to-fund regression, and a synthesis identifying regions that are both poverty-deep and funding-at-risk. All findings are correlational, not causal -- this is a single-snapshot dataset.
+
+## Project Structure
+
+```
+Kiva-Loans-Microfinance-Analytics/
+├── Kiva_Loans_Microfinance_Analytics.ipynb   # the notebook, run end to end
+├── build_notebook.py                         # generates the notebook, edit this not the .ipynb
+├── figs/
+│   ├── geo_funding_vs_poverty.png            # Section 5 geospatial/MPI figure
+│   └── shap_summary.png                      # Section 7 SHAP summary plot
+├── requirements.txt
+├── LICENSE
+└── README.md
+```
+
+## Quick Start
+
+1. Download the two source CSVs (see Dataset below) and place them in `../Data/Kiva/` relative to this folder.
+2. `pip install -r requirements.txt`
+3. Run `build_notebook.py` then execute the generated notebook end to end (full commands under Running it below).
+4. Section 7 (funding-risk model + SHAP) has the headline result; Section 9 has the region-priority synthesis.
+
+## Features
+
+- **Exploratory analysis** across loan amount, sector, country, and borrower gender composition (Section 3).
+- **Text mining** of the free-text `use` field via TF-IDF, producing coherent per-sector vocabulary (Section 4).
+- **Geospatial join** against Kiva's region-level Multidimensional Poverty Index, with honest coverage reporting (Section 5).
+- **Leakage-checked feature engineering** -- outcome-dependent columns (`funded_time`, `disbursed_time`, `lender_count`, `funded_amount`) explicitly excluded because they aren't knowable at posting time (Section 6).
+- **Funding-risk classification** (Logistic Regression, Random Forest, LightGBM compared), evaluated on minority-class PR-AUC -- the metric that actually answers the question, not the flattering majority-class one (Section 7).
+- **Days-to-fund regression** on funded loans (Section 8).
+- **Region-priority synthesis** combining predicted funding risk with MPI poverty depth (Section 9).
+
+## Tech Stack
+
+| Layer | Tools |
+|---|---|
+| Language | Python |
+| ML | scikit-learn, LightGBM |
+| Explainability | SHAP |
+| Text mining | scikit-learn TF-IDF |
+| Geospatial / visualization | Plotly, Kaleido, Matplotlib, Seaborn |
+| Notebook | Jupyter, nbformat, nbclient |
+
+## Dataset
 
 Kaggle's "Data Science for Good: Kiva Crowdfunding" dataset -- 671,205 real microloans
 (`kiva_loans.csv`), joined against Kiva's region-level Multidimensional Poverty Index
@@ -17,7 +61,7 @@ Kaggle's "Data Science for Good: Kiva Crowdfunding" dataset -- 671,205 real micr
 download from:
 https://www.kaggle.com/datasets/kiva/data-science-for-good-kiva-crowdfunding
 
-## Method
+## Methodology
 
 - **EDA (Section 3):** loan amounts are right-skewed (median $500, mean $842, max
   $100,000); the three largest sectors are Agriculture (180,302 loans), Food (136,657),
@@ -31,7 +75,7 @@ https://www.kaggle.com/datasets/kiva/data-science-for-good-kiva-crowdfunding
 - **Geospatial + MPI join (Section 5):** each loan's `country` + `region` is joined
   against Kiva's region-to-MPI lookup table. Coverage is low -- only **7.6%** of loans
   matched (50,955 / 671,205) -- so every MPI-dependent result describes only that
-  matched subset, not the full dataset (see Limitations).
+  matched subset, not the full dataset (see Known Limitations).
 - **Feature engineering with an explicit leakage check (Section 6):** `funded_time`,
   `disbursed_time`, `lender_count`, and `funded_amount` are excluded because they are
   consequences of a loan being funded, not knowable at posting time. The model uses
@@ -78,7 +122,7 @@ https://www.kaggle.com/datasets/kiva/data-science-for-good-kiva-crowdfunding
   illustrative of the method, not as a reliable region-targeting list for the
   92.4% of loan volume that couldn't be matched to an MPI score.
 
-## Limitations
+## Known Limitations
 
 - **Single data snapshot.** Loans with no `funded_time` at the moment this dataset
   was captured are treated as "not fully funded" -- some may simply not have expired
@@ -106,8 +150,17 @@ python build_notebook.py
 jupyter nbconvert --to notebook --execute Kiva_Loans_Microfinance_Analytics.ipynb --output Kiva_Loans_Microfinance_Analytics.ipynb
 ```
 
-The two source CSVs (`kiva_loans.csv` and `kiva_mpi_region_locations.csv`, see Data
+The two source CSVs (`kiva_loans.csv` and `kiva_mpi_region_locations.csv`, see Dataset
 above) must be placed in `../Data/Kiva/` relative to this folder before running.
+
+## Roadmap
+
+- [x] EDA, text mining, geospatial/MPI join
+- [x] Leakage-checked funding-risk model (LightGBM, SHAP)
+- [x] Days-to-fund regression
+- [x] Region-priority synthesis
+- [ ] Improve MPI join coverage beyond 7.6% (fuzzy/normalized region matching)
+- [ ] Language detection for non-English `use` text before TF-IDF
 
 ## License
 
