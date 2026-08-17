@@ -9,7 +9,7 @@
 
 ## Why?
 
-**Which loans are at risk of not getting fully funded — and does that risk fall hardest on the poorest regions?** This notebook analyzes 671k+ real microloans from Kiva's public dataset (Kaggle's "Data Science for Good: Kiva Crowdfunding"), combining exploratory analysis, text mining of loan-use descriptions, a geospatial join against a region-level poverty index, a funding-risk classification model explained with SHAP, a days-to-fund regression, and a synthesis identifying regions that are both poverty-deep and funding-at-risk. All findings are correlational, not causal -- this is a single-snapshot dataset.
+**Which loans are at risk of not getting fully funded, and does that risk fall hardest on the poorest regions?** This notebook analyzes 671k+ real microloans from Kiva's public dataset (Kaggle's "Data Science for Good: Kiva Crowdfunding"). It runs exploratory analysis, text mining of loan-use descriptions, and a geospatial join against a region-level poverty index, then builds a funding-risk classification model explained with SHAP, a days-to-fund regression, and a final synthesis flagging regions that are both poverty-deep and funding-at-risk. All findings are correlational, not causal; this is a single-snapshot dataset.
 
 ## Project Structure
 
@@ -38,7 +38,7 @@ Kiva-Loans-Microfinance-Analytics/
 - **Text mining** of the free-text `use` field via TF-IDF, producing coherent per-sector vocabulary (Section 4).
 - **Geospatial join** against Kiva's region-level Multidimensional Poverty Index, with honest coverage reporting (Section 5).
 - **Leakage-checked feature engineering** -- outcome-dependent columns (`funded_time`, `disbursed_time`, `lender_count`, `funded_amount`) explicitly excluded because they aren't knowable at posting time (Section 6).
-- **Funding-risk classification** (Logistic Regression, Random Forest, LightGBM compared), evaluated on minority-class PR-AUC -- the metric that actually answers the question, not the flattering majority-class one (Section 7).
+- **Funding-risk classification** (Logistic Regression, Random Forest, LightGBM compared), evaluated on minority-class PR-AUC -- the majority-class number looks good regardless of whether the model works, so it's minority-class PR-AUC that actually answers the question (Section 7).
 - **Days-to-fund regression** on funded loans (Section 8).
 - **Region-priority synthesis** combining predicted funding risk with MPI poverty depth (Section 9).
 
@@ -101,7 +101,7 @@ https://www.kaggle.com/datasets/kiva/data-science-for-good-kiva-crowdfunding
   Forest (0.3580) and Logistic Regression (0.2731) on this metric. (Majority-class
   PR-AUC is 0.9937 and ROC-AUC is 0.9241, but both sit close to the majority class's
   trivial-baseline floor and are reported for completeness, not as the headline --
-  the minority-class number is the one that actually reflects the "at risk of not
+  the minority-class number is the one that answers the "at risk of not
   being funded" question.) On the minority class specifically: precision 0.25,
   recall 0.91.
 - **MPI join coverage: 7.6%** (50,955 / 671,205 loans matched to a region-level MPI
@@ -124,20 +124,24 @@ https://www.kaggle.com/datasets/kiva/data-science-for-good-kiva-crowdfunding
 
 ## Known Limitations
 
-- **Single data snapshot.** Loans with no `funded_time` at the moment this dataset
-  was captured are treated as "not fully funded" -- some may simply not have expired
-  yet. This is a modeling assumption, not a certainty.
-- **MPI join coverage is only 7.6% (50,955 / 671,205 loans).** Most loans could not be
-  matched to a region-level MPI score, most likely because `kiva_loans.csv`'s
-  free-text `region` field (entered inconsistently by field partners) doesn't
-  standardize against the MPI lookup table's `region` field well enough for an exact
-  string join. Every MPI-dependent result -- the Section 5 map/correlation, the `MPI`
-  feature in the Section 7 model, and the Section 9 priority-regions table -- describes
-  only that small, non-random 7.6% subset of loans, not the full dataset.
-- **Correlational, not causal.** Nothing here establishes that any feature *causes*
-  funding success or delay -- only that it's predictive/associated.
-- **English-only text mining.** TF-IDF was fit on the raw `use` field without language
-  detection; non-English descriptions contribute noise to the term list.
+Four things worth flagging before trusting any result above too far.
+
+Loans with no `funded_time` at the moment this dataset was captured are treated
+as "not fully funded" in the model, but some may simply not have expired yet;
+that's a modeling assumption, not a certainty. MPI join coverage sits at just
+7.6% (50,955 / 671,205 loans) -- most loans couldn't be matched to a
+region-level MPI score, most likely because `kiva_loans.csv`'s free-text
+`region` field (entered inconsistently by field partners) doesn't standardize
+against the MPI lookup table's `region` field well enough for an exact string
+join. That means every MPI-dependent result in this notebook, the Section 5
+map/correlation, the `MPI` feature in the Section 7 model, and the Section 9
+priority-regions table, describes only that small, non-random 7.6% subset of
+loans.
+
+Nothing here establishes that any feature *causes* funding success or delay,
+only that it's predictive or associated with it. And the text mining is
+English-only: TF-IDF was fit on the raw `use` field without language
+detection, so non-English descriptions contribute noise to the term list.
 
 ## Running it
 
@@ -164,11 +168,11 @@ above) must be placed in `../Data/Kiva/` relative to this folder before running.
 
 ## License
 
-MIT — see [`LICENSE`](LICENSE).
+MIT. See [`LICENSE`](LICENSE).
 
 ## Credits
 
-Author: **Alven Yuka** — CPA Finalist (Kenya). Built on the [Kiva Loans / MPI dataset](https://www.kaggle.com/datasets/kiva/data-science-for-good-kiva-crowdfunding) (Kaggle).
+Author: **Alven Yuka**, CPA Finalist (Kenya). Built on the [Kiva Loans / MPI dataset](https://www.kaggle.com/datasets/kiva/data-science-for-good-kiva-crowdfunding) (Kaggle).
 
 ## Connect
 
