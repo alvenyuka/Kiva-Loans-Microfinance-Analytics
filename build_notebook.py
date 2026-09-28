@@ -339,10 +339,10 @@ md("""---
 
 `funded_time`, `disbursed_time`, and `lender_count` are **consequences** of a loan
 being funded. They don't exist yet at the moment a loan is posted, so a model
-using them to predict "will this loan be funded" would be cheating (this portfolio
-has a documented history of exactly this kind of leakage inflating a model's
-apparent performance. See the `Customer_LTV` project, where an
-uncaught leak inflated R² from 0.906 to 0.996). They are explicitly excluded below.
+using them to predict "will this loan be funded" would be cheating. A leak of
+exactly this kind, in an earlier project of mine, inflated a model's R² from
+0.906 to 0.996 before it was caught, which is why the guard below is executed
+rather than described. They are explicitly excluded.
 """)
 
 code("""# mark_fully_funded, LEAKY_COLUMNS and POSTING_TIME_FEATURES all come from
