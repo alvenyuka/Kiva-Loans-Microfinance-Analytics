@@ -6,6 +6,7 @@
 [![Python](https://img.shields.io/badge/Python-3776AB?style=flat&logo=python&logoColor=white)](#tech-stack)
 [![LightGBM](https://img.shields.io/badge/LightGBM-02569B?style=flat)](#tech-stack)
 [![PR-AUC (at-risk)](https://img.shields.io/badge/PR--AUC%20(at--risk)-0.4889-success)](#results)
+[![tests](https://github.com/alvenyuka/Kiva-Loans-Microfinance-Analytics/actions/workflows/ci.yml/badge.svg)](https://github.com/alvenyuka/Kiva-Loans-Microfinance-Analytics/actions/workflows/ci.yml)
 
 ## Why?
 
@@ -17,20 +18,33 @@
 Kiva-Loans-Microfinance-Analytics/
 ├── Kiva_Loans_Microfinance_Analytics.ipynb   # the notebook, run end to end
 ├── build_notebook.py                         # generates the notebook, edit this not the .ipynb
+├── src/
+│   └── features.py                           # leakage guard, funding target, gender parsing
+├── tests/
+│   └── test_features.py                      # 26 tests, no dataset needed
 ├── figs/
 │   ├── geo_funding_vs_poverty.png            # Section 5 geospatial/MPI figure
 │   └── shap_summary.png                      # Section 7 SHAP summary plot
+├── .github/workflows/ci.yml                  # runs the tests on every push
+├── conftest.py                               # puts src/ on sys.path for the tests
+├── pytest.ini
 ├── requirements.txt
 ├── LICENSE
 └── README.md
 ```
 
+The notebook is generated, so `build_notebook.py` is the file to edit, never the
+`.ipynb`. The logic the conclusions rest on has been moved into `src/features.py`
+so the notebook and the test suite exercise the same code rather than two copies
+that drift apart.
+
 ## Quick Start
 
-1. Download the two source CSVs (see Dataset below) and place them in `../Data/Kiva/` relative to this folder.
+1. Download the two source CSVs (see Dataset below) into `./data`, or put them anywhere and set `KIVA_DATA_DIR` to that folder.
 2. `pip install -r requirements.txt`
-3. Run `build_notebook.py` then execute the generated notebook end to end (full commands under Running it below).
-4. Section 7 (funding-risk model + SHAP) has the headline result; Section 9 has the region-priority synthesis.
+3. `python -m pytest` to check the leakage guard and feature logic. This needs no data and takes a few seconds.
+4. Run `build_notebook.py`, then execute the generated notebook end to end (full commands under Running it below).
+5. Section 7 (funding-risk model + SHAP) has the headline result; Section 9 has the region-priority synthesis.
 
 ## Features
 
@@ -149,13 +163,62 @@ Requires: `numpy`, `pandas`, `matplotlib`, `seaborn`, `scikit-learn`, `lightgbm`
 `shap`, `plotly` (with `kaleido` for static map export), and `jupyter`/`nbconvert`.
 
 ```bash
-pip install numpy pandas matplotlib seaborn scikit-learn lightgbm shap plotly kaleido jupyter nbconvert
+pip install -r requirements.txt
+
+# the tests: no dataset, a few seconds
+python -m pytest
+
+# the notebook
+export KIVA_DATA_DIR=/path/to/kiva/csvs      # or put them in ./data
 python build_notebook.py
-jupyter nbconvert --to notebook --execute Kiva_Loans_Microfinance_Analytics.ipynb --output Kiva_Loans_Microfinance_Analytics.ipynb
+jupyter nbconvert --to notebook --execute Kiva_Loans_Microfinance_Analytics.ipynb \
+  --output Kiva_Loans_Microfinance_Analytics.ipynb
 ```
 
-The two source CSVs (`kiva_loans.csv` and `kiva_mpi_region_locations.csv`, see Dataset
-above) must be placed in `../Data/Kiva/` relative to this folder before running.
+The tests take seconds and need nothing. The notebook takes roughly 10 minutes
+end to end and needs about 2GB of free memory, most of it the 671,205-row loan
+table and the TF-IDF matrix built from the `use` field.
+
+`kiva_loans.csv` and `kiva_mpi_region_locations.csv` (see Dataset above) go in
+`./data`, or anywhere you point `KIVA_DATA_DIR` at. The setup cell raises a named
+error if it cannot find them, rather than failing several cells later with
+something that looks like a data problem.
+
+An earlier version of this repo hardcoded `../Data/Kiva`, which stopped resolving
+once the folder moved. The notebook's stored outputs still looked fine, so nothing
+surfaced the breakage until someone tried to re-run it. That is the reason the path
+is configurable and checked now.
+
+## Tests
+
+```bash
+python -m pytest        # 26 tests, about 2 seconds
+```
+
+The tests do not re-check the model's score. They check the three things whose
+failure would leave the score looking perfectly reasonable:
+
+| What is tested | Why it can break silently |
+|---|---|
+| **The leakage guard** (`assert_no_leakage`) | `funded_time`, `disbursed_time`, `lender_count` and `funded_amount` all exist only because a loan was funded. A model using them to predict funding is reading the answer off the back of the card, and the symptom is a *better* PR-AUC, not an error. Each leaky column is tested individually, so a newly added one cannot pass by hiding behind one already caught, and suffixed derivatives like `lender_count_log` are caught too, since one-hot encoding and binning rename columns. The guard runs twice in the notebook, before and after encoding. |
+| **The funding target** (`mark_fully_funded`) | One line, and every figure in the project hangs off it. The test that matters is the overfunded loan: Kiva loans occasionally close slightly above the amount requested, and an equality test rather than `>=` would label those as failures. |
+| **Borrower gender parsing** (`parse_gender_counts`) | `borrower_genders` is a comma-separated list because group loans are normal on Kiva, so the parsing has to count borrowers rather than rows. Missing values and unrecognised labels are counted as neither, not folded into one side, because the female share is a headline figure. A row that cannot be parsed gets `pct_female = NaN`, never 0, since 0 would assert an all-male loan and the model reads that column. |
+
+This is not a hypothetical concern in this portfolio. An uncaught leak of exactly
+this shape once inflated a model's R-squared from 0.906 to 0.996, which is why the
+guard is executed in the notebook rather than described in a comment.
+
+Three more tests cover a bug this repo actually hit. The feature-name constants
+were tuples at first, and pandas reads a tuple as one compound key, so
+`df[POSTING_TIME_FEATURES]` raised `KeyError` with all fourteen names as the key
+instead of selecting fourteen columns. The message looks like missing data rather
+than a type mistake, and it surfaced part-way through a full notebook run. The
+constants are lists now, and the three call sites that depend on that are each
+tested: column selection, list concatenation for the model matrix, and
+`pd.get_dummies(columns=...)`.
+
+Every test builds its own small frame, so CI runs them without the ~200MB of Kiva
+CSVs. The analysis itself stays a local step.
 
 ## Roadmap
 

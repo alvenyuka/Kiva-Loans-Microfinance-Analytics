@@ -41,11 +41,14 @@ md("""---
 ## 1. Setup
 """)
 
-code("""import numpy as np
+code("""import os
+import sys
+from pathlib import Path
+
+import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
-from pathlib import Path
 
 RANDOM_STATE = 42
 np.random.seed(RANDOM_STATE)
@@ -53,8 +56,36 @@ pd.set_option("display.max_columns", 30)
 pd.set_option("display.width", 200)
 sns.set_theme(style="whitegrid", context="notebook")
 
-DATA_DIR = Path("../Data/Kiva")
+# The feature engineering and the leakage guard live in src/features.py rather
+# than in this notebook, so that they can be unit-tested. See tests/ and the
+# Tests section of the README. Importing them here means the notebook and the
+# test suite are checking the same code, not two copies that can drift apart.
+sys.path.insert(0, str(Path.cwd() / "src"))
+from features import (
+    CATEGORICAL_COLUMNS,
+    LEAKY_COLUMNS,
+    POSTING_TIME_FEATURES,
+    add_borrower_features,
+    assert_no_leakage,
+    mark_fully_funded,
+)
+
+# Where the Kiva CSVs live. Override with KIVA_DATA_DIR to keep the ~200MB of
+# data outside the repo. An earlier version hardcoded a path relative to a
+# directory layout that no longer exists, which left the notebook unrunnable
+# without anyone noticing, because the stored outputs still looked fine.
+DATA_DIR = Path(os.environ.get("KIVA_DATA_DIR", "data"))
+if not (DATA_DIR / "kiva_loans.csv").exists():
+    raise FileNotFoundError(
+        "kiva_loans.csv not found under " + str(DATA_DIR.resolve()) + '''
+
+Download the "Data Science for Good: Kiva Crowdfunding" dataset from
+https://www.kaggle.com/datasets/kiva/data-science-for-good-kiva-crowdfunding
+then either put the CSVs in ./data or set KIVA_DATA_DIR to the folder holding them.'''
+    )
+
 print("Setup OK. pandas:", pd.__version__, "| numpy:", np.__version__)
+print("Data directory:", DATA_DIR.resolve())
 """)
 
 # =====================================================================
@@ -155,19 +186,13 @@ md("""### 3.3 Borrower gender composition
 (loans can be group loans). Parsing it into counts of male/female borrowers.
 """)
 
-code("""def parse_gender_counts(genders_str):
-    if pd.isna(genders_str):
-        return pd.Series({"n_male": 0, "n_female": 0})
-    parts = [p.strip() for p in str(genders_str).split(",")]
-    n_male = sum(1 for p in parts if p == "male")
-    n_female = sum(1 for p in parts if p == "female")
-    return pd.Series({"n_male": n_male, "n_female": n_female})
-
-gender_counts = df["borrower_genders"].apply(parse_gender_counts)
-df["n_male"] = gender_counts["n_male"].astype("int16")
-df["n_female"] = gender_counts["n_female"].astype("int16")
-df["n_borrowers"] = df["n_male"] + df["n_female"]
-df["pct_female"] = np.where(df["n_borrowers"] > 0, df["n_female"] / df["n_borrowers"], np.nan)
+code("""# add_borrower_features comes from src/features.py. Its edge cases (group
+# loans, missing values, unrecognised labels) are covered in
+# tests/test_features.py, which is why the parsing is not written out here.
+# An unparseable row gets pct_female = NaN rather than 0: NaN means "we could
+# not tell", 0 would claim the loan had only male borrowers, and the model
+# reads this column.
+df = add_borrower_features(df)
 
 print(f"Loans with 0 parsed borrowers: {(df['n_borrowers'] == 0).sum():,}")
 print(f"Median % female borrowers per loan: {df['pct_female'].median():.2%}")
@@ -320,17 +345,13 @@ apparent performance -- see the `Customer_LTV` project, where an
 uncaught leak inflated R² from 0.906 to 0.996). They are explicitly excluded below.
 """)
 
-code("""df["fully_funded"] = (df["funded_amount"] >= df["loan_amount"]).astype("int8")
+code("""# mark_fully_funded, LEAKY_COLUMNS and POSTING_TIME_FEATURES all come from
+# src/features.py, so the definition the model uses is the definition the tests
+# check. >= rather than == on purpose: a loan that closes slightly over its
+# target is funded.
+df["fully_funded"] = mark_fully_funded(df)
 df["post_month"] = df["posted_time"].dt.month.astype("int8")
 df["post_dow"] = df["posted_time"].dt.dayofweek.astype("int8")
-
-LEAKY_COLUMNS = ["funded_time", "disbursed_time", "lender_count", "funded_amount"]
-
-POSTING_TIME_FEATURES = [
-    "loan_amount", "sector", "activity", "country", "term_in_months",
-    "repayment_interval", "n_male", "n_female", "n_borrowers", "pct_female",
-    "post_month", "post_dow", "MPI", "use_len",
-]
 
 model_df = pd.concat([df[POSTING_TIME_FEATURES + ["fully_funded"]], tfidf_features.drop(columns=["use_len"])], axis=1)
 model_df = model_df.dropna(subset=["loan_amount", "term_in_months"])
@@ -338,20 +359,31 @@ model_df = model_df.dropna(subset=["loan_amount", "term_in_months"])
 print(f"Modeling rows: {len(model_df):,} (dropped {len(df) - len(model_df):,} with missing core fields)")
 print(f"Excluded as leakage: {LEAKY_COLUMNS}")
 print(f"Feature count: {model_df.shape[1] - 1}")
+
+# The guard, run rather than described. It raises LeakageError naming every
+# offending column. This is the check that has to fire, because a leaked column
+# does not break the model, it improves its score, so nothing downstream would
+# ever flag it.
+assert_no_leakage(model_df.drop(columns=["fully_funded"]).columns)
+print("Leakage guard passed: no post-outcome column reached the feature set.")
+
 model_df.head()
 """)
 
 md("""### 6.2 Encoding categoricals
 """)
 
-code("""CATEGORICAL_COLUMNS = ["sector", "activity", "country", "repayment_interval"]
-
-model_encoded = pd.get_dummies(model_df, columns=CATEGORICAL_COLUMNS, drop_first=True)
+code("""model_encoded = pd.get_dummies(model_df, columns=CATEGORICAL_COLUMNS, drop_first=True)
 
 y = model_encoded.pop("fully_funded")
 X = model_encoded.fillna({"MPI": model_encoded["MPI"].median()})
 X["pct_female"] = X["pct_female"].fillna(X["pct_female"].median())
 FEATURE_COLUMNS = list(X.columns)
+
+# Re-run the guard after one-hot encoding. Encoding creates new column names,
+# and a suffixed column such as funded_amount_bucket would sail past a check
+# that only ran before the encoding step.
+assert_no_leakage(FEATURE_COLUMNS)
 
 print(f"X shape: {X.shape}")
 print(f"Target balance: {y.value_counts(normalize=True).to_dict()}")

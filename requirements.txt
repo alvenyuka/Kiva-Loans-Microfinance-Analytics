@@ -11,3 +11,10 @@ jupyter>=1.0
 ipykernel>=6.29
 nbformat>=5.10
 nbclient>=0.10
+
+# Testing
+# The README and the task runner both tell you to run `python -m pytest`, so
+# the thing that runs the tests belongs in the file that installs the
+# dependencies. Without this line the documented workflow fails on a fresh
+# clone at the first command a reviewer is likely to try.
+pytest>=8.0
