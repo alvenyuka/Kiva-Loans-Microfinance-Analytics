@@ -1,4 +1,4 @@
-"""Generate Kiva_Loans_Microfinance_Analytics.ipynb -- an authored, from-scratch
+"""Generate Kiva_Loans_Microfinance_Analytics.ipynb, an authored, from-scratch
 rebuild replacing the copied reference kernels in archive_reference_kernels/."""
 import json
 from pathlib import Path
@@ -16,7 +16,7 @@ def code(text):
 # =====================================================================
 md("""# Kiva Loans Microfinance Analytics
 
-**Which loans are at risk of not getting fully funded -- and does that risk fall
+**Which loans are at risk of not getting fully funded, and does that risk fall
 hardest on the poorest regions?**
 
 This notebook analyzes 671k+ real microloans from Kiva's public dataset (Kaggle's
@@ -30,7 +30,7 @@ This notebook analyzes 671k+ real microloans from Kiva's public dataset (Kaggle'
 5. A days-to-fund regression among successfully funded loans.
 6. A synthesis: which regions are both poverty-deep and funding-at-risk.
 
-All findings are correlational, not causal -- this is a single-snapshot dataset.
+All findings are correlational, not causal: this is a single-snapshot dataset.
 """)
 
 # =====================================================================
@@ -265,7 +265,7 @@ md("""---
 
 Joining each loan's `country` + `region` against Kiva's own region-to-MPI mapping
 (`kiva_mpi_region_locations.csv`), which is a many-fewer-rows region lookup table,
-not a per-loan file -- most loans will match on `country` + `region` exactly, some
+not a per-loan file. Most loans will match on `country` + `region` exactly, some
 won't (region naming isn't perfectly standardized). Join coverage is reported
 explicitly rather than assumed.
 """)
@@ -338,10 +338,10 @@ md("""---
 ### 6.1 The leakage check
 
 `funded_time`, `disbursed_time`, and `lender_count` are **consequences** of a loan
-being funded -- they don't exist yet at the moment a loan is posted, so a model
+being funded. They don't exist yet at the moment a loan is posted, so a model
 using them to predict "will this loan be funded" would be cheating (this portfolio
 has a documented history of exactly this kind of leakage inflating a model's
-apparent performance -- see the `Customer_LTV` project, where an
+apparent performance. See the `Customer_LTV` project, where an
 uncaught leak inflated R² from 0.906 to 0.996). They are explicitly excluded below.
 """)
 
@@ -397,21 +397,21 @@ md("""---
 ## 7. Funding-risk model
 
 Comparing Logistic Regression, Random Forest, and LightGBM on `fully_funded`.
-The target is moderately imbalanced -- about 92.8% fully funded vs. 7.2% not
+The target is moderately imbalanced: about 92.8% fully funded vs. 7.2% not
 (not as extreme as e.g. fraud detection, but skewed enough that accuracy would
 be misleading).
 
 This notebook's stated question is *which loans are at risk of not getting
-fully funded* -- i.e. performance on the minority "not funded" class (label 0)
+fully funded*, i.e. performance on the minority "not funded" class (label 0)
 is what actually matters, not performance on the majority "funded" class.
 `sklearn.metrics.average_precision_score` defaults to scoring the positive
 label (1 = funded), so that number alone would silently answer the wrong
-question -- it would mostly reflect how easy the majority class is (its floor
+question. It would mostly reflect how easy the majority class is (its floor
 is the class prevalence, ~0.928, so a majority-class PR-AUC of ~0.99 is a much
 smaller lift than it looks). We report **both**:
 
-- **PR-AUC (funded, majority class)** -- `average_precision_score(y_test, y_proba)`
-- **PR-AUC (at-risk, minority class)** -- `average_precision_score(1 - y_test, 1 - y_proba)`,
+- **PR-AUC (funded, majority class)**: `average_precision_score(y_test, y_proba)`
+- **PR-AUC (at-risk, minority class)**: `average_precision_score(1 - y_test, 1 - y_proba)`,
   which reframes "predict class 1" as "predict class 0" by flipping both the
   true labels and the predicted probabilities
 
@@ -521,7 +521,7 @@ md("""---
 
 Among loans that *did* get fully funded, regressing `(funded_time - posted_time)`
 in days against the same posting-time feature set (no separate leakage question
-here -- the population is already restricted to funded loans, and the target is a
+here: the population is already restricted to funded loans, and the target is a
 time gap, not the funding outcome itself).
 """)
 
@@ -592,23 +592,62 @@ md("""---
 
 ## 10. Limitations
 
-- **Single data snapshot.** Loans with no `funded_time` at the moment this dataset
-  was captured are treated as "not fully funded" -- some may simply not have
-  expired yet. This is a modeling assumption, not a certainty.
+- **Right-censoring in the target, measured rather than assumed.** Loans with no
+  `funded_time` at the moment this dataset was captured are treated as "not fully
+  funded", but Kiva loans fundraise for weeks after posting, so a loan posted near
+  the snapshot boundary is not "not funded", it is "not funded yet". The snapshot
+  ends 2017-07-26, and the funded rate falls off a cliff as that date approaches:
+  93.6% for loans posted more than 90 days before it, 89.3% at 46 to 60 days,
+  74.0% at 31 to 45 days, 34.8% at 15 to 21 days, and 16.4% in the final week.
+  **12.7% of all 48,328 not-funded labels are loans posted within the final 45
+  days.** The headline metric is minority-class PR-AUC, so roughly one in eight of
+  the positives it is scored on is a censoring artifact rather than a funding
+  failure. Dropping loans posted within the last 60 days would cost about 3.8% of
+  rows and give a defensible target; it is not done here, and the published
+  PR-AUC should be read with that in mind.
+- **The leakage guard cannot see this, by design.** `assert_no_leakage` is a name
+  check over feature columns. The censoring above is in the *target definition*,
+  which the guard never inspects. The same blind spot covers a renamed derived
+  feature and any groupby target encoding.
+- **Preprocessing is fit before the split, not inside it.** The `MPI` and
+  `pct_female` medians in Section 7 and the TF-IDF vocabulary and IDF weights in
+  Section 6 are all computed over train and test together. A median barely moves
+  for a handful of extra rows, so the effect is small, but the correct form is a
+  pipeline fit on train only, and
+  this repo's own argument is that a leakage check has to be executed rather than
+  assumed.
+- **The split is random, on data that has a time dimension.** `train_test_split`
+  with `stratify=y` is used, while `posted_time` exists, `post_month` and
+  `post_dow` are features, and the target has the strong time trend documented
+  above. A train-before-a-cutoff, test-after split would be the honest form and
+  would report a lower number.
+- **Two of the mapped regions are plotted on the wrong continent.** In
+  `kiva_mpi_region_locations.csv`, Sierra Leone / Port Loko carries 5.557,
+  23.763, which is in the Central African Republic, and Timor-Leste / Aileu
+  carries 3.428, -76.487, which is in Colombia. Every other Timor-Leste region in
+  that file sits near -8.x, 125 to 127. The join is exact and `many_to_one`, so
+  this is an upstream defect in the Kaggle file rather than a bug here, but
+  `figs/geo_funding_vs_poverty.png` publishes it, and Aileu is the top row of the
+  priority table. A bounding-box check after the merge would catch it.
 - **MPI join coverage is only 7.6% (50,955 / 671,205 loans).** The vast majority of
   loans could not be matched to a region-level MPI score, most likely because
   `kiva_loans.csv`'s free-text `region` field (entered inconsistently by field
   partners) doesn't standardize against `kiva_mpi_region_locations.csv`'s `region`
   field well enough for an exact string join. Every MPI-dependent result in this
-  notebook -- the Section 5 map/correlation, the `MPI` feature in the Section 7
-  model, and the Section 9 priority-regions table -- describes only that small,
+  notebook, the Section 5 map/correlation, the `MPI` feature in the Section 7
+  model, and the Section 9 priority-regions table, describes only that small,
   non-random 7.6% subset of loans (skewed toward whichever regions happen to have
   cleanly-matching names), not the full dataset. This is well below a level where
   region-level findings should be treated as representative, and the priority-regions
   table in particular should be read as illustrative of the method, not as a
   reliable region-targeting list for the other 92.4% of loan volume.
+- **The MPI correlation is an ecological one.** The 0.253 correlation in Section 5
+  is computed across 76 regions, between a region's MPI and its percent-funded.
+  A region-level association says nothing about whether any individual poorer
+  borrower is less likely to be funded; assuming it does is the ecological
+  fallacy.
 - **Correlational, not causal.** Nothing here establishes that any feature *causes*
-  funding success or delay -- only that it's predictive/associated.
+  funding success or delay, only that it is predictive or associated.
 - **English-only text mining.** TF-IDF was fit on the raw `use` field without
   language detection; non-English descriptions contribute noise to the term list.
 """)

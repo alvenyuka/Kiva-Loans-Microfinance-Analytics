@@ -21,7 +21,7 @@ Kiva-Loans-Microfinance-Analytics/
 ├── src/
 │   └── features.py                           # leakage guard, funding target, gender parsing
 ├── tests/
-│   └── test_features.py                      # 26 tests, no dataset needed
+│   └── test_features.py                      # leakage guard, target, gender parsing; no dataset needed
 ├── figs/
 │   ├── geo_funding_vs_poverty.png            # Section 5 geospatial/MPI figure
 │   └── shap_summary.png                      # Section 7 SHAP summary plot
@@ -43,7 +43,7 @@ that drift apart.
 1. Download the two source CSVs (see Dataset below) into `./data`, or put them anywhere and set `KIVA_DATA_DIR` to that folder.
 2. `pip install -r requirements.txt`
 3. `python -m pytest` to check the leakage guard and feature logic. This needs no data and takes a few seconds.
-4. Run `build_notebook.py`, then execute the generated notebook end to end (full commands under Running it below).
+4. Run `build_notebook.py`, then execute the generated notebook end to end (full commands under Running it below). Note that step 4 overwrites the committed notebook with a fresh, output-free copy, so its stored outputs are gone until you execute it.
 5. Section 7 (funding-risk model + SHAP) has the headline result; Section 9 has the region-priority synthesis.
 
 ## Features
@@ -51,8 +51,8 @@ that drift apart.
 - **Exploratory analysis** across loan amount, sector, country, and borrower gender composition (Section 3).
 - **Text mining** of the free-text `use` field via TF-IDF, producing coherent per-sector vocabulary (Section 4).
 - **Geospatial join** against Kiva's region-level Multidimensional Poverty Index, with honest coverage reporting (Section 5).
-- **Leakage-checked feature engineering** -- outcome-dependent columns (`funded_time`, `disbursed_time`, `lender_count`, `funded_amount`) explicitly excluded because they aren't knowable at posting time (Section 6).
-- **Funding-risk classification** (Logistic Regression, Random Forest, LightGBM compared), evaluated on minority-class PR-AUC -- the majority-class number looks good regardless of whether the model works, so it's minority-class PR-AUC that actually answers the question (Section 7).
+- **Leakage-checked feature engineering**: outcome-dependent columns (`funded_time`, `disbursed_time`, `lender_count`, `funded_amount`) explicitly excluded because they aren't knowable at posting time (Section 6).
+- **Funding-risk classification** (Logistic Regression, Random Forest, LightGBM compared), evaluated on minority-class PR-AUC, because the majority-class number looks good regardless of whether the model works (Section 7).
 - **Days-to-fund regression** on funded loans (Section 8).
 - **Region-priority synthesis** combining predicted funding risk with MPI poverty depth (Section 9).
 
@@ -69,10 +69,10 @@ that drift apart.
 
 ## Dataset
 
-Kaggle's "Data Science for Good: Kiva Crowdfunding" dataset -- 671,205 real microloans
+Kaggle's "Data Science for Good: Kiva Crowdfunding" dataset: 671,205 real microloans
 (`kiva_loans.csv`), joined against Kiva's region-level Multidimensional Poverty Index
-(`kiva_mpi_region_locations.csv`). Not included in this repo (see `.gitignore`) --
-download from:
+(`kiva_mpi_region_locations.csv`). Not included in this repo (see `.gitignore`).
+Download from:
 https://www.kaggle.com/datasets/kiva/data-science-for-good-kiva-crowdfunding
 
 ## Methodology
@@ -87,8 +87,8 @@ https://www.kaggle.com/datasets/kiva/data-science-for-good-kiva-crowdfunding
   vocabulary is coherent and non-degenerate (Agriculture -> farm/fertilizer/seeds,
   Food -> fish/rice/ingredients, Personal Use -> drinking/filter/solar/water).
 - **Geospatial + MPI join (Section 5):** each loan's `country` + `region` is joined
-  against Kiva's region-to-MPI lookup table. Coverage is low -- only **7.6%** of loans
-  matched (50,955 / 671,205) -- so every MPI-dependent result describes only that
+  against Kiva's region-to-MPI lookup table. Coverage is low: only **7.6%** of loans
+  matched (50,955 / 671,205), so every MPI-dependent result describes only that
   matched subset, not the full dataset (see Known Limitations).
 - **Feature engineering with an explicit leakage check (Section 6):** `funded_time`,
   `disbursed_time`, `lender_count`, and `funded_amount` are excluded because they are
@@ -98,7 +98,7 @@ https://www.kaggle.com/datasets/kiva/data-science-for-good-kiva-crowdfunding
 - **Funding-risk model + SHAP (Section 7):** Logistic Regression, Random Forest, and
   LightGBM are compared on `fully_funded` (92.8% funded / 7.2% not funded) using
   **both** majority-class and minority-class PR-AUC, since the notebook's actual
-  question -- which loans are at risk of *not* being funded -- is about the minority
+  question, which loans are at risk of *not* being funded, is about the minority
   class; LightGBM wins on both metrics and is explained with SHAP.
 - **Days-to-fund regression (Section 8):** among loans that did get funded, a Random
   Forest regresses `days_to_fund = funded_time - posted_time` on the same posting-time
@@ -110,11 +110,11 @@ https://www.kaggle.com/datasets/kiva/data-science-for-good-kiva-crowdfunding
 
 ## Results
 
-- **Funding-risk model:** LightGBM is the best model. Headline metric --
-  **PR-AUC (at-risk, minority class) = 0.4889** -- substantially outperforms Random
+- **Funding-risk model:** LightGBM is the best model. On the headline metric,
+  **PR-AUC (at-risk, minority class) = 0.4889**, it substantially outperforms Random
   Forest (0.3580) and Logistic Regression (0.2731) on this metric. (Majority-class
   PR-AUC is 0.9937 and ROC-AUC is 0.9241, but both sit close to the majority class's
-  trivial-baseline floor and are reported for completeness, not as the headline --
+  trivial-baseline floor and are reported for completeness, not as the headline;
   the minority-class number is the one that answers the "at risk of not
   being funded" question.) On the minority class specifically: precision 0.25,
   recall 0.91.
@@ -130,7 +130,7 @@ https://www.kaggle.com/datasets/kiva/data-science-for-good-kiva-crowdfunding
   held-out test loans with a known MPI). The highest-priority region is
   Timor-Leste/Aileu (MPI 0.379, priority score 0.1996), followed by
   Timor-Leste/Viqueque, Timor-Leste/Ermera, Sierra Leone/Kenema, and Sierra
-  Leone/Bo -- i.e. Timor-Leste and Sierra Leone regions dominate the top of the
+  Leone/Bo, so Timor-Leste and Sierra Leone regions dominate the top of the
   list, combining high poverty depth with lower model-predicted funding
   probability. Given the 7.6% MPI coverage, this list should be read as
   illustrative of the method, not as a reliable region-targeting list for the
@@ -138,24 +138,65 @@ https://www.kaggle.com/datasets/kiva/data-science-for-good-kiva-crowdfunding
 
 ## Known Limitations
 
-Four things worth flagging before trusting any result above too far.
+Read these before trusting any result above too far. The first one moves the
+headline number.
 
-Loans with no `funded_time` at the moment this dataset was captured are treated
-as "not fully funded" in the model, but some may simply not have expired yet;
-that's a modeling assumption, not a certainty. MPI join coverage sits at just
-7.6% (50,955 / 671,205 loans) -- most loans couldn't be matched to a
-region-level MPI score, most likely because `kiva_loans.csv`'s free-text
-`region` field (entered inconsistently by field partners) doesn't standardize
-against the MPI lookup table's `region` field well enough for an exact string
-join. That means every MPI-dependent result in this notebook, the Section 5
-map/correlation, the `MPI` feature in the Section 7 model, and the Section 9
-priority-regions table, describes only that small, non-random 7.6% subset of
-loans.
+**About one in eight of the minority-class labels is a censoring artifact.**
+Loans with no `funded_time` when the dataset was captured are labelled "not
+fully funded", but Kiva loans fundraise for weeks after posting, so a loan
+posted near the snapshot boundary is not "not funded", it is "not funded yet".
+The snapshot ends 2017-07-26, and the funded rate collapses as that date
+approaches: 93.6% for loans posted more than 90 days before it, 89.3% at 46 to
+60 days, 74.0% at 31 to 45 days, 34.8% at 15 to 21 days, 16.4% in the final
+week. **12.7% of all 48,328 not-funded labels are loans posted within the final
+45 days.** The headline metric is minority-class PR-AUC, so roughly one in
+eight of the positives it scores on is this artifact rather than a funding
+failure. Filtering out loans posted within the last 60 days would cost about
+3.8% of rows and give a defensible target. It is not done here, and 0.4889
+should be read with that in mind.
 
-Nothing here establishes that any feature *causes* funding success or delay,
-only that it's predictive or associated with it. And the text mining is
-English-only: TF-IDF was fit on the raw `use` field without language
-detection, so non-English descriptions contribute noise to the term list.
+**The leakage guard cannot catch that, by design.** `assert_no_leakage` is a
+name check over feature columns. The problem above is in the target definition,
+which the guard never inspects. The same blind spot covers a renamed derived
+feature and any groupby target encoding. The guard is good at what it does; it
+is worth knowing what it does not look at.
+
+**Preprocessing is fit before the split.** The `MPI` and `pct_female` medians
+and the TF-IDF vocabulary and IDF weights are all computed over train and test
+together. A median barely moves for a handful of extra rows, so the effect is
+small, but the correct form is a pipeline fit on train only.
+
+**The split is random on data that has a time dimension.** `posted_time`
+exists, `post_month` and `post_dow` are features, and the target has the strong
+time trend documented above. A train-before-a-cutoff, test-after split would be
+the honest form and would report a lower number.
+
+**Two mapped regions are plotted on the wrong continent.** In the upstream
+`kiva_mpi_region_locations.csv`, Sierra Leone / Port Loko carries 5.557, 23.763
+(Central African Republic) and Timor-Leste / Aileu carries 3.428, -76.487
+(Colombia), while every other Timor-Leste region in that file sits near -8.x,
+125 to 127. The join is exact and `many_to_one`, so this is a defect in the
+Kaggle file rather than in the notebook, but `figs/geo_funding_vs_poverty.png`
+publishes it and Aileu is the top row of the priority table. A bounding-box
+check after the merge would catch it.
+
+**MPI join coverage sits at just 7.6%** (50,955 / 671,205 loans). Most loans
+could not be matched to a region-level MPI score, most likely because
+`kiva_loans.csv`'s free-text `region` field (entered inconsistently by field
+partners) doesn't standardize against the MPI lookup table's `region` field
+well enough for an exact string join. Every MPI-dependent result, the Section 5
+map and correlation, the `MPI` feature in the Section 7 model, and the Section
+9 priority-regions table, describes only that small, non-random subset.
+
+**The Section 5 MPI correlation is an ecological one.** The 0.253 figure is
+computed across 76 regions, between a region's MPI and its percent funded. It
+says nothing about whether any individual poorer borrower is less likely to be
+funded.
+
+**Correlational, not causal**, throughout: nothing here establishes that any
+feature *causes* funding success or delay. And the text mining is English-only:
+TF-IDF was fit on the raw `use` field without language detection, so
+non-English descriptions contribute noise to the term list.
 
 ## Running it
 
@@ -192,7 +233,7 @@ is configurable and checked now.
 ## Tests
 
 ```bash
-python -m pytest        # 26 tests, about 2 seconds
+python -m pytest        # about 2 seconds
 ```
 
 The tests do not re-check the model's score. They check the three things whose
@@ -204,9 +245,10 @@ failure would leave the score looking perfectly reasonable:
 | **The funding target** (`mark_fully_funded`) | One line, and every figure in the project hangs off it. The test that matters is the overfunded loan: Kiva loans occasionally close slightly above the amount requested, and an equality test rather than `>=` would label those as failures. |
 | **Borrower gender parsing** (`parse_gender_counts`) | `borrower_genders` is a comma-separated list because group loans are normal on Kiva, so the parsing has to count borrowers rather than rows. Missing values and unrecognised labels are counted as neither, not folded into one side, because the female share is a headline figure. A row that cannot be parsed gets `pct_female = NaN`, never 0, since 0 would assert an all-male loan and the model reads that column. |
 
-This is not a hypothetical concern in this portfolio. An uncaught leak of exactly
-this shape once inflated a model's R-squared from 0.906 to 0.996, which is why the
-guard is executed in the notebook rather than described in a comment.
+This is not a hypothetical concern. An uncaught leak of exactly
+this shape once inflated a model's R-squared from 0.906 to 0.996 in an earlier,
+unpublished project of mine, which is why the guard is executed in the notebook
+rather than described in a comment.
 
 Three more tests cover a bug this repo actually hit. The feature-name constants
 were tuples at first, and pandas reads a tuple as one compound key, so
@@ -228,6 +270,10 @@ CSVs. The analysis itself stays a local step.
 - [x] Region-priority synthesis
 - [ ] Improve MPI join coverage beyond 7.6% (fuzzy/normalized region matching)
 - [ ] Language detection for non-English `use` text before TF-IDF
+- [ ] Drop loans posted within 60 days of the snapshot and restate the PR-AUC
+- [ ] Fit imputation and TF-IDF inside a pipeline, on train only
+- [ ] Temporal train/test split, reported alongside the random one
+- [ ] Bounding-box check on the MPI coordinates after the merge
 
 ## License
 
