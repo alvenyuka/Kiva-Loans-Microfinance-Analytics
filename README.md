@@ -28,6 +28,9 @@ The development-finance question sits on top of that: are the poorest regions th
 
 - **How a loan is structured matters most.** The strongest predictors of funding risk are the loan term, the
   amount requested and the month it is posted, ranked ahead of borrower gender mix, sector and country.
+
+  ![Top features by mean absolute SHAP value: loan term, loan amount and posting month lead](figs/shap_summary.png)
+
 - **Poverty data covers only 7.6% of loans** (50,955 of 671,205), because region names do not match the
   poverty index cleanly. Within that subset, regions in Timor-Leste and Sierra Leone combine the deepest
   poverty with the lowest predicted funding, but the list illustrates the method rather than a targeting
