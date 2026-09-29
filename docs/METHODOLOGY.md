@@ -284,5 +284,5 @@ MIT. See [`LICENSE`](../LICENSE).
 
 ## Credits
 
-Author: **Alven Yuka**, CPA Finalist (Kenya). Built on the [Kiva Loans / MPI dataset](https://www.kaggle.com/datasets/kiva/data-science-for-good-kiva-crowdfunding) (Kaggle).
+Author: **Alven Yuka**, CPA Finalist. Built on the [Kiva Loans / MPI dataset](https://www.kaggle.com/datasets/kiva/data-science-for-good-kiva-crowdfunding) (Kaggle).
 
