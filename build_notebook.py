@@ -85,7 +85,7 @@ then either put the CSVs in ./data or set KIVA_DATA_DIR to the folder holding th
     )
 
 print("Setup OK. pandas:", pd.__version__, "| numpy:", np.__version__)
-print("Data directory:", DATA_DIR.resolve())
+print("Data directory:", "KIVA_DATA_DIR" if "KIVA_DATA_DIR" in os.environ else "./data")
 """)
 
 # =====================================================================
@@ -273,6 +273,19 @@ explicitly rather than assumed.
 code("""mpi = pd.read_csv(DATA_DIR / "kiva_mpi_region_locations.csv")
 mpi = mpi[["country", "region", "MPI", "lat", "lon"]].drop_duplicates(subset=["country", "region"])
 
+# Coordinate sanity check. A region far from its country's median position, by more
+# than five robust standard deviations of that country's spread and at least 10
+# degrees, is mis-keyed in the upstream file, so its point is dropped from the map
+# (its MPI value, which is what the model uses, is kept).
+by_country = mpi.groupby("country")[["lat", "lon"]]
+offset = (mpi[["lat", "lon"]] - by_country.transform("median")).abs()
+spread = by_country.transform(lambda s: (s - s.median()).abs().median()) * 1.4826
+limit = np.maximum(10, 5 * spread)
+misplaced = (offset["lat"] > limit["lat"]) | (offset["lon"] > limit["lon"])
+print(f"Coordinates dropped as misplaced: {misplaced.sum()} of {mpi['lat'].notna().sum()} located regions, for example:")
+print(mpi.loc[misplaced, ["country", "region", "lat", "lon"]].head(8).to_string(index=False))
+mpi.loc[misplaced, ["lat", "lon"]] = np.nan
+
 df = df.merge(mpi, on=["country", "region"], how="left", validate="many_to_one")
 
 coverage = df["MPI"].notna().mean()
@@ -353,10 +366,23 @@ df["fully_funded"] = mark_fully_funded(df)
 df["post_month"] = df["posted_time"].dt.month.astype("int8")
 df["post_dow"] = df["posted_time"].dt.dayofweek.astype("int8")
 
-model_df = pd.concat([df[POSTING_TIME_FEATURES + ["fully_funded"]], tfidf_features.drop(columns=["use_len"])], axis=1)
+# Right-censoring. A loan with no funded_time when the snapshot was taken may still
+# have been fundraising, so "not funded" is only known for loans posted well before
+# the snapshot. Measure it, then keep only loans whose outcome was settled.
+snapshot_end = df["posted_time"].max()
+age_days = (snapshot_end - df["posted_time"]).dt.days
+age_band = pd.cut(age_days, [-1, 7, 14, 21, 30, 45, 60, 90, 10**6],
+                  labels=["0-7", "8-14", "15-21", "22-30", "31-45", "46-60", "61-90", ">90"])
+censoring = df.groupby(age_band, observed=True)["fully_funded"].agg(funded_rate="mean", loans="size")
+print(f"Snapshot ends {snapshot_end.date()}. Funded rate by days between posting and snapshot:")
+print(censoring.to_string(float_format=lambda v: f"{v:.3f}"))
+settled = age_days > 60
+print(f"Excluded {(~settled).sum():,} loans ({(~settled).mean():.1%}) posted within 60 days of the snapshot.")
+
+model_df = df.loc[settled, POSTING_TIME_FEATURES + ["fully_funded", "use"]]
 model_df = model_df.dropna(subset=["loan_amount", "term_in_months"])
 
-print(f"Modeling rows: {len(model_df):,} (dropped {len(df) - len(model_df):,} with missing core fields)")
+print(f"Modeling rows: {len(model_df):,} (dropped {settled.sum() - len(model_df):,} settled loans with missing core fields)")
 print(f"Excluded as leakage: {LEAKY_COLUMNS}")
 print(f"Feature count: {model_df.shape[1] - 1}")
 
@@ -364,21 +390,41 @@ print(f"Feature count: {model_df.shape[1] - 1}")
 # offending column. This is the check that has to fire, because a leaked column
 # does not break the model, it improves its score, so nothing downstream would
 # ever flag it.
-assert_no_leakage(model_df.drop(columns=["fully_funded"]).columns)
+assert_no_leakage(model_df.drop(columns=["fully_funded", "use"]).columns)
 print("Leakage guard passed: no post-outcome column reached the feature set.")
 
 model_df.head()
 """)
 
-md("""### 6.2 Encoding categoricals
+md("""### 6.2 Time-based split, and preprocessing fitted on the training period only
+
+Loans are split by posting date: the earliest 80% train the models and the most
+recent 20% test them, the way a platform would use a model on loans it has not yet
+seen. The TF-IDF vocabulary and the medians used to fill missing values are fitted
+on the training period alone.
 """)
 
-code("""model_encoded = pd.get_dummies(model_df, columns=CATEGORICAL_COLUMNS, drop_first=True)
+code("""posted = df.loc[model_df.index, "posted_time"]
+split_date = posted.quantile(0.8)
+is_train = posted <= split_date
+print(f"Train: loans posted up to {split_date.date()} ({is_train.sum():,}); test: after it ({(~is_train).sum():,})")
 
+tfidf_train = TfidfVectorizer(max_features=30, stop_words="english", ngram_range=(1, 2), min_df=50)
+tfidf_train.fit(model_df.loc[is_train, "use"])
+use_terms = pd.DataFrame(
+    (tfidf_train.transform(model_df["use"]) > 0).toarray().astype("int8"),
+    columns=[f"use_tfidf_{t.replace(' ', '_')}" for t in tfidf_train.get_feature_names_out()],
+    index=model_df.index,
+)
+
+model_encoded = pd.get_dummies(pd.concat([model_df.drop(columns=["use"]), use_terms], axis=1),
+                               columns=CATEGORICAL_COLUMNS, drop_first=True)
 y = model_encoded.pop("fully_funded")
-X = model_encoded.fillna({"MPI": model_encoded["MPI"].median()})
-X["pct_female"] = X["pct_female"].fillna(X["pct_female"].median())
+fill = {c: model_encoded.loc[is_train, c].median() for c in ("MPI", "pct_female")}
+X = model_encoded.fillna(fill)
 FEATURE_COLUMNS = list(X.columns)
+X_train, X_test = X[is_train], X[~is_train]
+y_train, y_test = y[is_train], y[~is_train]
 
 # Re-run the guard after one-hot encoding. Encoding creates new column names,
 # and a suffixed column such as funded_amount_bucket would sail past a check
@@ -397,9 +443,8 @@ md("""---
 ## 7. Funding-risk model
 
 Comparing Logistic Regression, Random Forest, and LightGBM on `fully_funded`.
-The target is moderately imbalanced: about 92.8% fully funded vs. 7.2% not
-(not as extreme as e.g. fraud detection, but skewed enough that accuracy would
-be misleading).
+The target is imbalanced (the class balance is printed in 6.2), skewed enough
+that accuracy would be misleading.
 
 This notebook's stated question is *which loans are at risk of not getting
 fully funded*, i.e. performance on the minority "not funded" class (label 0)
@@ -420,17 +465,13 @@ also what drives model selection below, since it's the one that answers the
 notebook's actual question.
 """)
 
-code("""from sklearn.model_selection import train_test_split
-from sklearn.linear_model import LogisticRegression
+code("""from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import average_precision_score, roc_auc_score, classification_report
 import lightgbm as lgb
 
-X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.2, random_state=RANDOM_STATE, stratify=y
-)
-
+# X_train / X_test come from the time-based split in 6.2.
 results = {}
 results_minority = {}
 
@@ -490,7 +531,14 @@ print(classification_report(y_test, (y_proba >= 0.5).astype(int)))
 md("""### 7.2 SHAP explainability
 """)
 
-code("""import shap
+code("""import warnings
+
+# SHAP pulls in tqdm, which warns when ipywidgets is absent, and warns that
+# LightGBM's binary output format changed. Neither affects the values below.
+warnings.filterwarnings("ignore", message="IProgress not found")
+warnings.filterwarnings("ignore", message="LightGBM binary classifier with TreeExplainer")
+warnings.filterwarnings("ignore", message="The NumPy global RNG was seeded")
+import shap
 
 if best_model_name == "LightGBM":
     explainer = shap.TreeExplainer(best_model)
@@ -525,17 +573,19 @@ here: the population is already restricted to funded loans, and the target is a
 time gap, not the funding outcome itself).
 """)
 
-code("""funded_only = df[df["fully_funded"] == 1].copy()
+code("""funded_only = df[(df["fully_funded"] == 1) & settled].copy()
 funded_only["days_to_fund"] = (funded_only["funded_time"] - funded_only["posted_time"]).dt.total_seconds() / 86400
 funded_only = funded_only[funded_only["days_to_fund"] >= 0]
 
-reg_df = pd.concat(
-    [funded_only[POSTING_TIME_FEATURES], tfidf_features.loc[funded_only.index].drop(columns=["use_len"]), funded_only[["days_to_fund"]]],
-    axis=1,
+reg_terms = pd.DataFrame(
+    (tfidf_train.transform(funded_only["use"]) > 0).toarray().astype("int8"),
+    columns=use_terms.columns, index=funded_only.index,
 )
+reg_df = pd.concat([funded_only[POSTING_TIME_FEATURES], reg_terms, funded_only[["days_to_fund"]]], axis=1)
 reg_encoded = pd.get_dummies(reg_df, columns=CATEGORICAL_COLUMNS, drop_first=True)
 y_reg = reg_encoded.pop("days_to_fund")
-X_reg = reg_encoded.fillna({"MPI": reg_encoded["MPI"].median()})
+reg_train = funded_only["posted_time"] <= split_date
+X_reg = reg_encoded.fillna({c: reg_encoded.loc[reg_train, c].median() for c in ("MPI", "pct_female")})
 
 print(f"Regression rows: {len(X_reg):,}")
 print(funded_only['days_to_fund'].describe())
@@ -544,7 +594,8 @@ print(funded_only['days_to_fund'].describe())
 code("""from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_absolute_error, r2_score
 
-Xr_train, Xr_test, yr_train, yr_test = train_test_split(X_reg, y_reg, test_size=0.2, random_state=RANDOM_STATE)
+Xr_train, Xr_test = X_reg[reg_train], X_reg[~reg_train]
+yr_train, yr_test = y_reg[reg_train], y_reg[~reg_train]
 
 reg_model = RandomForestRegressor(n_estimators=150, max_depth=10, n_jobs=-1, random_state=RANDOM_STATE)
 reg_model.fit(Xr_train, yr_train)
@@ -592,43 +643,16 @@ md("""---
 
 ## 10. Limitations
 
-- **Right-censoring in the target, measured rather than assumed.** Loans with no
-  `funded_time` at the moment this dataset was captured are treated as "not fully
-  funded", but Kiva loans fundraise for weeks after posting, so a loan posted near
-  the snapshot boundary is not "not funded", it is "not funded yet". The snapshot
-  ends 2017-07-26, and the funded rate falls off a cliff as that date approaches:
-  93.6% for loans posted more than 90 days before it, 89.3% at 46 to 60 days,
-  74.0% at 31 to 45 days, 34.8% at 15 to 21 days, and 16.4% in the final week.
-  **12.7% of all 48,328 not-funded labels are loans posted within the final 45
-  days.** The headline metric is minority-class PR-AUC, so roughly one in eight of
-  the positives it is scored on is a censoring artifact rather than a funding
-  failure. Dropping loans posted within the last 60 days would cost about 3.8% of
-  rows and give a defensible target; it is not done here, and the published
-  PR-AUC should be read with that in mind.
-- **The leakage guard cannot see this, by design.** `assert_no_leakage` is a name
-  check over feature columns. The censoring above is in the *target definition*,
-  which the guard never inspects. The same blind spot covers a renamed derived
-  feature and any groupby target encoding.
-- **Preprocessing is fit before the split, not inside it.** The `MPI` and
-  `pct_female` medians in Section 7 and the TF-IDF vocabulary and IDF weights in
-  Section 6 are all computed over train and test together. A median barely moves
-  for a handful of extra rows, so the effect is small, but the correct form is a
-  pipeline fit on train only, and
-  this repo's own argument is that a leakage check has to be executed rather than
-  assumed.
-- **The split is random, on data that has a time dimension.** `train_test_split`
-  with `stratify=y` is used, while `posted_time` exists, `post_month` and
-  `post_dow` are features, and the target has the strong time trend documented
-  above. A train-before-a-cutoff, test-after split would be the honest form and
-  would report a lower number.
-- **Two of the mapped regions are plotted on the wrong continent.** In
-  `kiva_mpi_region_locations.csv`, Sierra Leone / Port Loko carries 5.557,
-  23.763, which is in the Central African Republic, and Timor-Leste / Aileu
-  carries 3.428, -76.487, which is in Colombia. Every other Timor-Leste region in
-  that file sits near -8.x, 125 to 127. The join is exact and `many_to_one`, so
-  this is an upstream defect in the Kaggle file rather than a bug here, but
-  `figs/geo_funding_vs_poverty.png` publishes it, and Aileu is the top row of the
-  priority table. A bounding-box check after the merge would catch it.
+- **Censoring is handled, not eliminated.** Loans posted within 60 days of the
+  snapshot are excluded because their outcome was not yet known (the table in 6.1
+  shows the funded rate by posting age). A few loans older than that may still have
+  been fundraising, so the at-risk class can contain a small residue of them.
+- **Time-based evaluation.** Models train on the earliest 80% of settled loans by
+  posting date and are scored on the most recent 20%, with the TF-IDF vocabulary
+  and missing-value medians fitted on the training period only.
+- **Misplaced map points are dropped.** Regions far outside their country's spread
+  in the upstream MPI file (counted in Section 5) are left off the map; their MPI
+  values are still used.
 - **MPI join coverage is only 7.6% (50,955 / 671,205 loans).** The vast majority of
   loans could not be matched to a region-level MPI score, most likely because
   `kiva_loans.csv`'s free-text `region` field (entered inconsistently by field
