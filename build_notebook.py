@@ -639,6 +639,50 @@ print(f"Regions in priority table: {len(priority)}")
 priority.head(15)
 """)
 
+md("""### 9.1 Business impact: how much of the funding shortfall does the score point at?
+
+A loan's shortfall is the part of its requested amount that lenders never funded, in US
+dollars. If Kiva reviewed only the loans the model ranks riskiest in the test period (for
+example to feature them or add matching funds), what share of the total shortfall would
+those reviews cover? `src/impact.py` does the arithmetic and is covered by the tests.
+""")
+
+code("""from impact import funding_shortfall, shortfall_capture
+
+test_loans = df.loc[X_test.index, ["loan_amount", "funded_amount"]]
+risk = 1 - y_proba  # higher = more likely to go unfunded
+capture = shortfall_capture(risk, test_loans["loan_amount"], test_loans["funded_amount"])
+total_shortfall = funding_shortfall(test_loans["loan_amount"], test_loans["funded_amount"]).sum()
+flagged = risk >= 0.5
+flagged_cover = funding_shortfall(test_loans["loan_amount"], test_loans["funded_amount"])[flagged].sum()
+
+print(f"Test period: {len(test_loans):,} loans, total funding shortfall ${total_shortfall:,.0f}")
+print(f"Loans flagged at-risk at the default threshold: {flagged.sum():,} "
+      f"({flagged.mean():.1%}), covering ${flagged_cover:,.0f} ({flagged_cover / total_shortfall:.1%}) of the shortfall")
+print(capture.to_string(index=False, formatters={
+    "review_share": "{:.0%}".format, "shortfall_covered_usd": "${:,.0f}".format,
+    "shortfall_covered_pct": "{:.1%}".format, "unfunded_loans_covered_pct": "{:.1%}".format}))
+
+shares = np.linspace(0, 1, 101)
+curve = shortfall_capture(risk, test_loans["loan_amount"], test_loans["funded_amount"], review_shares=shares[1:])
+fig, ax = plt.subplots(figsize=(8, 4.5))
+ax.plot([0] + list(curve["review_share"] * 100), [0] + list(curve["shortfall_covered_pct"] * 100),
+        color="#2b6cb0", lw=2, label=f"{best_model_name} ranking")
+ax.plot([0, 100], [0, 100], color="#a0aec0", ls="--", lw=1, label="Random review")
+for _, r in capture.iterrows():
+    ax.annotate(f"{r['shortfall_covered_pct']:.0%}", (r["review_share"] * 100, r["shortfall_covered_pct"] * 100),
+                textcoords="offset points", xytext=(6, -12), fontsize=9)
+ax.set_xlabel("Share of test-period loans reviewed, riskiest first (%)")
+ax.set_ylabel("Share of funding shortfall covered (%)")
+ax.set_title(f"Funding shortfall covered by reviewing the riskiest loans (total ${total_shortfall / 1e6:.1f}M)",
+             loc="left", fontsize=11)
+ax.legend(frameon=False, loc="lower right")
+ax.spines[["top", "right"]].set_visible(False)
+plt.tight_layout()
+plt.savefig("figs/shortfall_capture.png", dpi=150, bbox_inches="tight")
+plt.show()
+""")
+
 md("""---
 
 ## 10. Limitations

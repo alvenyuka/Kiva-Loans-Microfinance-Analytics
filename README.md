@@ -1,50 +1,54 @@
 # Kiva Loans Microfinance Analytics
 
 A funding-risk model on 671,205 Kiva microloans that scores each loan at posting time for the risk of never
-being fully funded. Tested on the most recent 20% of loans, LightGBM reaches **PR-AUC 0.389** on the at-risk
-class (base rate 4.6%) and catches **76%** of at-risk loans.
+being fully funded. Tested on the most recent 20% of loans, it reaches **PR-AUC 0.389** on the at-risk class
+(base rate 4.6%), and reviewing just **the riskiest 10% of loans would reach 77% of the $5.8M funding
+shortfall**.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Python](https://img.shields.io/badge/Python-3776AB?style=flat&logo=python&logoColor=white)](#getting-started)
+[![Python](https://img.shields.io/badge/Python-3776AB?style=flat&logo=python&logoColor=white)](#how-to-run)
 [![tests](https://github.com/alvenyuka/Kiva-Loans-Microfinance-Analytics/actions/workflows/ci.yml/badge.svg)](https://github.com/alvenyuka/Kiva-Loans-Microfinance-Analytics/actions/workflows/ci.yml)
 
-![Top features by mean absolute SHAP value: loan term, loan amount and posting month lead](figs/shap_summary.png)
+![Funding shortfall covered by reviewing the riskiest loans first: 56% at 5%, 77% at 10%, 92% at 20% of loans](figs/shortfall_capture.png)
 
-## Overview
+## Contents
+
+1. [Business problem](#business-problem)
+2. [Dataset](#dataset)
+3. [Methodology](#methodology)
+4. [Results](#results)
+5. [Business impact](#business-impact)
+6. [Key insights](#key-insights)
+7. [Limitations](#limitations)
+8. [Repository structure](#repository-structure)
+9. [How to run](#how-to-run)
+
+## Business problem
 
 On Kiva, microfinance field partners post loans for small borrowers and lenders fund them in small amounts.
-About 6% of loans with a known outcome never reach full funding, which can mean a missed planting season for
-the borrower and a loan the field partner has to cover or cancel. Spotting those loans when they are posted
-gives a platform or impact funder time to act, for example by featuring a loan or adding matching funds.
+About 6% of loans with a known outcome never reach full funding. For the borrower that can mean a missed
+planting season or lost stock; for the field partner, a loan it has to cover or cancel.
 
-The project also asks the development-finance question behind it: are the poorest regions the ones left
-unfunded? Loans are joined to Kiva's regional Multidimensional Poverty Index (MPI) to test that.
+A platform or impact funder has limited levers (featuring a loan, adding matching funds, working with the
+partner on terms) and cannot apply them to every loan. The question is whether the loans that will fall short
+can be identified when they are posted, and whether that risk falls hardest on the poorest regions.
 
-## Results
+## Dataset
 
-Held-out test set: the 129,017 most recently posted loans (after 27 Oct 2016), 5,957 of them not funded.
+[Data Science for Good: Kiva Crowdfunding](https://www.kaggle.com/datasets/kiva/data-science-for-good-kiva-crowdfunding)
+(Kaggle), joined to Kiva's regional Multidimensional Poverty Index (MPI).
 
-| Model | PR-AUC, at-risk class | ROC-AUC |
-|---|---:|---:|
-| **LightGBM** | **0.389** | 0.921 |
-| Random forest | 0.284 | |
-| Logistic regression | 0.237 | |
-
-| LightGBM at the default threshold | Value |
+| Property | Value |
 |---|---:|
-| Recall, at-risk loans caught | 76% |
-| Precision, flagged loans truly at risk | 24% |
-| Days-to-fund error for funded loans (MAE) | 7.0 days |
+| Loans | 671,205 |
+| Snapshot ends | 26 Jul 2017 |
+| Loans with a settled outcome (posted over 60 days before the snapshot) | 645,083 |
+| Not fully funded, settled loans | 6.4% |
+| Training period (posted up to 27 Oct 2016) | 516,066 loans |
+| Test period (posted after it) | 129,017 loans, 4.6% not funded |
+| Loans matched to a regional poverty score | 50,955 (7.6%) |
 
-- **Loan structure drives funding risk.** Term, amount and posting month rank well ahead of borrower gender
-  mix, sector and country.
-- **The score is a screening tool.** It flags about four loans for each one truly at risk, which suits cheap,
-  early support such as featuring a loan, not decisions that exclude borrowers.
-- **Poverty data covers only 7.6% of loans** (50,955), because region names do not match the index cleanly.
-  Within that subset, regions in Timor-Leste, Nigeria and Sierra Leone combine deep poverty with the lowest
-  predicted funding; the ranking illustrates the method rather than a targeting list.
-
-## Approach
+## Methodology
 
 ```mermaid
 flowchart LR
@@ -53,19 +57,74 @@ flowchart LR
     C --> D[Time split: earliest 80% train, latest 20% test]
     D --> E[TF-IDF and imputation fitted on train]
     E --> F[LightGBM vs random forest vs logistic regression]
-    F --> G[SHAP drivers and region priority score]
+    F --> G[SHAP drivers, shortfall capture, region priority]
 ```
 
 1. **Settled outcomes only.** The funded rate falls from 94% to 16% for loans posted in the snapshot's final
    week, because they were still fundraising. Loans posted within 60 days of the snapshot (3.9%) are excluded.
-2. **Posting-time features.** Funded time, lender count and funded amount exist only because a loan was
-   funded, so a tested guard keeps them out, before and after encoding.
-3. **Out-of-time evaluation.** Models train on loans posted up to 27 Oct 2016 and are scored on later ones;
-   the TF-IDF vocabulary of each loan's stated purpose and the missing-value medians are fitted on the
-   training period only.
+2. **Posting-time features.** Loan amount and term, repayment schedule, sector, country, borrower gender mix,
+   posting month and day, the regional poverty score, and terms from each loan's stated purpose (TF-IDF).
+   Funded time, lender count and funded amount exist only because a loan was funded, so a tested guard keeps
+   them out, before and after encoding.
+3. **Out-of-time evaluation.** Models train on loans posted up to 27 Oct 2016 and are scored on later ones; the
+   text vocabulary and missing-value medians are fitted on the training period only.
 4. **Model choice on the minority class**, since the funded majority scores well whatever the model does.
-5. **Regional synthesis**: MPI multiplied by predicted funding risk, after dropping 94 region coordinates the
-   upstream file places on the wrong continent.
+5. **Business evaluation.** Rank test-period loans by predicted risk and measure the funding shortfall (requested
+   minus funded, in US dollars) reached by reviewing the riskiest share first (`src/impact.py`).
+
+## Results
+
+Test set: the 129,017 most recently posted loans, 5,957 of them not funded.
+
+| Model | PR-AUC, at-risk class | ROC-AUC |
+|---|---:|---:|
+| **LightGBM** | **0.389** | 0.921 |
+| Random forest | 0.284 | |
+| Logistic regression | 0.237 | |
+
+At the default threshold LightGBM catches 76% of at-risk loans with 24% precision. A days-to-fund regression
+on funded loans has a mean absolute error of 7.0 days.
+
+![Top features by mean absolute SHAP value: loan term, loan amount and posting month lead](figs/shap_summary.png)
+
+## Business impact
+
+The test period's loans fell $5,797,550 short of full funding in total. Reviewing loans in order of predicted
+risk reaches most of that shortfall early:
+
+| Loans reviewed, riskiest first | Loans | Shortfall reached | Share of shortfall | Unfunded loans reached |
+|---|---:|---:|---:|---:|
+| 5% | 6,451 | $3,264,650 | 56% | 41% |
+| **10%** | **12,902** | **$4,462,975** | **77%** | **64%** |
+| 20% | 25,803 | $5,334,750 | 92% | 85% |
+| 30% | 38,705 | $5,660,325 | 98% | 95% |
+
+Random review of 10% of loans would reach about 10% of the shortfall; the model's ranking reaches 77%. The
+loans it flags at the default threshold (14.5% of the test period) account for 85.5% of the shortfall. For a
+platform with a fixed budget for featuring or matching funds, this turns an unmanageable queue into a short
+list.
+
+## Key insights
+
+- **Loan structure drives funding risk.** Term, amount and posting month rank well ahead of borrower gender mix,
+  sector and country, which points to terms that field partners can adjust.
+- **The top of the ranking holds the large shortfalls.** The riskiest 10% of loans reach 77% of the unfunded
+  dollars but 64% of the unfunded loans, so the model ranks the biggest gaps first.
+- **Poverty data is too sparse to target by region yet.** Only 7.6% of loans match a poverty score; within them,
+  regions in Timor-Leste, Nigeria and Sierra Leone combine deep poverty with the lowest predicted funding.
+- **Honest evaluation lowers the headline.** An earlier random split with still-fundraising loans included
+  reported PR-AUC 0.489; the out-of-time figure, 0.389, is the one to plan with.
+
+![Loan volume and funding success rate by region on a world map](figs/geo_funding_vs_poverty.png)
+
+## Limitations
+
+- **Correlational only.** Nothing here shows that a factor causes funding success, and the poverty link is
+  measured across regions, not individual borrowers.
+- **A single test window.** Walk-forward windows would show how stable the 0.389 figure is.
+- **Residual censoring.** A few loans older than 60 days at the snapshot may still have been fundraising.
+- **Shortfall is not loss.** It measures money borrowers did not receive through Kiva, not a financial loss to
+  the platform.
 
 ## Repository structure
 
@@ -73,12 +132,13 @@ flowchart LR
 Kiva_Loans_Microfinance_Analytics.ipynb   the analysis, executed end to end
 build_notebook.py                         generates the notebook (edit this, not the .ipynb)
 src/features.py                           leakage guard, funding target, gender parsing
+src/impact.py                             funding-shortfall capture
 tests/                                    tests for the logic the results rest on
-figs/                                     SHAP drivers and the funding-vs-poverty map
+figs/                                     shortfall capture, SHAP drivers, funding-vs-poverty map
 docs/METHODOLOGY.md                       full method, every result, limitations
 ```
 
-## Getting started
+## How to run
 
 ```bash
 pip install -r requirements.txt
@@ -88,14 +148,11 @@ python build_notebook.py
 jupyter nbconvert --to notebook --execute Kiva_Loans_Microfinance_Analytics.ipynb --output Kiva_Loans_Microfinance_Analytics.ipynb
 ```
 
-The notebook takes about 15 minutes and needs roughly 2 GB of free memory.
+The notebook takes about 20 minutes and needs roughly 2 GB of free memory.
 
-## Notes
+## Documentation
 
-- Correlational only: nothing here shows that a factor causes funding success, and the poverty link is
-  measured across regions, not individual borrowers.
-- A few loans older than 60 days at the snapshot may still have been fundraising, so the at-risk class can
-  hold a small residue of them.
+The full method, every result and the tests are described in [`docs/METHODOLOGY.md`](docs/METHODOLOGY.md).
 
 ## License
 
