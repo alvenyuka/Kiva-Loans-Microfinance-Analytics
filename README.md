@@ -1,9 +1,9 @@
 # Kiva Loans Microfinance Analytics
 
-A funding-risk model on 671,205 Kiva microloans that scores each loan at posting time for the risk of never
-being fully funded. Tested on the most recent 20% of loans, it reaches **PR-AUC 0.389** on the at-risk class
-(base rate 4.6%), and reviewing just **the riskiest 10% of loans would reach 77% of the $5.8M funding
-shortfall**.
+A model that warns, on the day a microloan is posted, that it may never be fully funded, so a platform can step
+in early. On the most recent 129,017 loans, reviewing just the 10% it ranks riskiest would **reach 77% of the
+$5.8M that went unfunded**. LightGBM on 671,205 Kiva loans (**PR-AUC 0.389** against a 4.6% base rate of
+unfunded loans).
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3776AB?style=flat&logo=python&logoColor=white)](#how-to-run)
