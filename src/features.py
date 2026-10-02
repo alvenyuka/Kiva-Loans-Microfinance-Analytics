@@ -6,10 +6,10 @@ it can be tested rather than asserted. Three things live here:
 1. **The leakage guard.** `funded_time`, `disbursed_time`, `lender_count` and
    `funded_amount` are consequences of a loan being funded. They do not exist at
    the moment a loan is posted, so a model that uses them to predict "will this
-   loan be funded" is reading the answer off the back of the card. This is not a
-   hypothetical concern in this portfolio: an uncaught leak of exactly this shape
-   once inflated a model's R-squared from 0.906 to 0.996. `assert_no_leakage`
-   turns that from a comment into a check that fails the build.
+   loan be funded" is reading the answer off the back of the card. A leaked
+   column does not break a model; it improves the score, so nothing downstream
+   would flag it. `assert_no_leakage` is therefore executed, not described: it
+   turns the rule into a check that fails the build.
 
 2. **Borrower gender parsing.** `borrower_genders` is a comma-separated list with
    one entry per borrower, because Kiva loans are often group loans. Parsing it
@@ -136,9 +136,7 @@ def parse_gender_counts(genders_str) -> dict[str, int]:
     labels count as neither rather than being guessed at, which keeps an
     unexpected label out of the female share instead of silently skewing it.
     """
-    if genders_str is None or (isinstance(genders_str, float) and np.isnan(genders_str)):
-        return {"n_male": 0, "n_female": 0}
-    if pd.isna(genders_str):
+    if genders_str is None or pd.isna(genders_str):
         return {"n_male": 0, "n_female": 0}
 
     parts = [p.strip().lower() for p in str(genders_str).split(",")]
@@ -157,10 +155,14 @@ def add_borrower_features(df: pd.DataFrame) -> pd.DataFrame:
     column.
     """
     out = df.copy()
-    counts = out["borrower_genders"].apply(parse_gender_counts).apply(pd.Series)
-
-    out["n_male"] = counts["n_male"].astype("int16")
-    out["n_female"] = counts["n_female"].astype("int16")
+    # Vectorised form of parse_gender_counts: split on commas, strip and lower-case
+    # each entry, then count exact matches per loan. The same rules as the scalar
+    # function (tested against it), without a Python call per row over 671k loans.
+    genders = pd.Series(out["borrower_genders"].to_numpy(), dtype="string")
+    tokens = genders.str.lower().str.split(",").explode().str.strip()
+    for label in ("male", "female"):
+        hits = tokens.eq(label).fillna(False).astype("int16")
+        out[f"n_{label}"] = hits.groupby(level=0).sum().reindex(range(len(out)), fill_value=0).to_numpy().astype("int16")
     out["n_borrowers"] = (out["n_male"] + out["n_female"]).astype("int16")
     out["pct_female"] = np.where(
         out["n_borrowers"] > 0,
