@@ -1,0 +1,210 @@
+{
+  "provenance": {
+    "run_date_utc": "2026-10-02",
+    "runtime_minutes": 19,
+    "peak_memory_gb": 4.8,
+    "git_commit": "2ebb620aa640c1eb9132199fbbcec91928b653a7",
+    "uncommitted_code_changes": false,
+    "python": "3.13.9",
+    "packages": {
+      "numpy": "2.4.6",
+      "pandas": "3.0.3",
+      "scikit-learn": "1.8.0",
+      "lightgbm": "4.6.0",
+      "shap": "0.51.0",
+      "matplotlib": "3.9.2",
+      "seaborn": "0.13.2",
+      "plotly": "6.9.0",
+      "kaleido": "1.3.0"
+    }
+  },
+  "data": {
+    "loans": 671205,
+    "snapshot_end": "2017-07-26",
+    "censor_days": 60,
+    "recent_loans_excluded": 26122,
+    "recent_loans_excluded_share": 0.03891806527066991,
+    "settled_loans": 645083,
+    "settled_not_funded_share": 0.06365072401535932,
+    "funded_rate_by_age_days": {
+      "0-7": 0.16363636363636364,
+      "8-14": 0.15503875968992248,
+      "15-21": 0.3481904761904762,
+      "22-30": 0.5583612471012626,
+      "31-45": 0.7400237914999459,
+      "46-60": 0.8926160975118365,
+      "61-90": 0.9635439360929557,
+      ">90": 0.9354497235870268
+    },
+    "modeling_rows": 645083,
+    "mpi_matched_loans": 50955,
+    "mpi_coverage": 0.0759157038460679,
+    "mpi_located_regions": 892,
+    "mpi_misplaced_coordinates": 94
+  },
+  "split": {
+    "train_share": 0.8,
+    "fit_slice_end": "2016-04-23",
+    "train_end": "2016-10-27",
+    "fit_loans": 412853,
+    "validation_loans": 103213,
+    "train_loans": 516066,
+    "test_loans": 129017,
+    "test_not_funded_loans": 5957,
+    "not_funded_share": {
+      "fit": 0.060968431863157146,
+      "validation": 0.0962281883096121,
+      "test": 0.04617220986381643
+    },
+    "feature_columns": 306
+  },
+  "classification": {
+    "candidates": {
+      "Logistic Regression": {
+        "validation_pr_auc_at_risk": 0.32933801374484045,
+        "test_pr_auc_at_risk": 0.23659728506479122,
+        "test_pr_auc_funded": 0.9874920844190996
+      },
+      "Random Forest": {
+        "validation_pr_auc_at_risk": 0.3951092708721573,
+        "test_pr_auc_at_risk": 0.28571368283273935,
+        "test_pr_auc_funded": 0.9941288114720803
+      },
+      "LightGBM": {
+        "validation_pr_auc_at_risk": 0.4859630714953945,
+        "test_pr_auc_at_risk": 0.385941751672224,
+        "test_pr_auc_funded": 0.9958019160908302
+      },
+      "LightGBM + time trend": {
+        "validation_pr_auc_at_risk": 0.49021334175365616,
+        "test_pr_auc_at_risk": 0.3742193424722034,
+        "test_pr_auc_funded": 0.9957711049360902
+      }
+    },
+    "chosen_model": "LightGBM + time trend",
+    "chosen_on": "validation PR-AUC, at-risk class",
+    "test_pr_auc_at_risk": 0.3742193424722034,
+    "test_pr_auc_funded": 0.9957711049360902,
+    "test_roc_auc": 0.9196334163460486,
+    "test_funded_share": 0.9538277901361836,
+    "at_risk_recall_at_0_5": 0.8599966426053383,
+    "at_risk_precision_at_0_5": 0.19414127633772926,
+    "top12_mean_abs_shap": {
+      "term_in_months": 1.5522066453184953,
+      "loan_amount": 1.3407977077424555,
+      "months_since_start": 0.6745689637422686,
+      "post_month": 0.39196643242700757,
+      "pct_female": 0.22389656483330317,
+      "n_female": 0.18846903526818595,
+      "sector_Education": 0.16022003490287778,
+      "sector_Retail": 0.15029123791268165,
+      "country_Cambodia": 0.08983887169938813,
+      "sector_Arts": 0.07604432619614508,
+      "country_Kenya": 0.07055166610647706,
+      "sector_Food": 0.06618679147254317
+    }
+  },
+  "regional_poverty": {
+    "regions_min_20_settled_loans": 75,
+    "settled_loans_in_regions": 48590,
+    "settled_loans_in_regions_share": 0.07532364052377756,
+    "pearson_mpi_vs_share_funded": 0.3029807011636179,
+    "spearman_mpi_vs_share_funded": 0.37471263485513673
+  },
+  "days_to_fund": {
+    "rows": 604019,
+    "test_rows": 123059,
+    "mean_days": 14.71040776533397,
+    "std_days": 14.54847700472095,
+    "mae_model_days": 7.043078531504381,
+    "mae_baseline_days": 8.075832180431068,
+    "baseline_train_median_days": 10.240393518518518,
+    "r2_model": 0.24752168883691406
+  },
+  "priority_regions": {
+    "regions": 57,
+    "top5": [
+      {
+        "country": "Timor-Leste",
+        "region": "Viqueque",
+        "n_test_loans": 14,
+        "MPI": 0.41,
+        "mean_model_score": 0.4754708556540216,
+        "priority_index": 0.8975069252077561
+      },
+      {
+        "country": "Timor-Leste",
+        "region": "Baucau",
+        "n_test_loans": 38,
+        "MPI": 0.357,
+        "mean_model_score": 0.5339809442921294,
+        "priority_index": 0.8156355801785165
+      },
+      {
+        "country": "Nigeria",
+        "region": "Kaduna",
+        "n_test_loans": 1239,
+        "MPI": 0.311,
+        "mean_model_score": 0.6539745710256006,
+        "priority_index": 0.5881809787626963
+      },
+      {
+        "country": "Guatemala",
+        "region": "Quiche",
+        "n_test_loans": 20,
+        "MPI": 0.193,
+        "mean_model_score": 0.5520414076894793,
+        "priority_index": 0.5806401969836873
+      },
+      {
+        "country": "Sierra Leone",
+        "region": "Bo",
+        "n_test_loans": 20,
+        "MPI": 0.449,
+        "mean_model_score": 0.7097161954193069,
+        "priority_index": 0.4909202831640505
+      }
+    ]
+  },
+  "shortfall": {
+    "test_total_usd": 5797550.0,
+    "flagged_loans": 26388,
+    "flagged_share": 0.20453118581272237,
+    "flagged_shortfall_usd": 5405175.0,
+    "flagged_shortfall_share": 0.9323205491975058,
+    "capture": [
+      {
+        "review_share": 0.05,
+        "loans_reviewed": 6451,
+        "shortfall_covered_usd": 3334700.0,
+        "shortfall_covered_pct": 0.5751912445774509,
+        "unfunded_loans_covered": 2404,
+        "unfunded_loans_covered_pct": 0.403558838341447
+      },
+      {
+        "review_share": 0.1,
+        "loans_reviewed": 12902,
+        "shortfall_covered_usd": 4402525.0,
+        "shortfall_covered_pct": 0.7593768057196575,
+        "unfunded_loans_covered": 3708,
+        "unfunded_loans_covered_pct": 0.6224609702870573
+      },
+      {
+        "review_share": 0.2,
+        "loans_reviewed": 25803,
+        "shortfall_covered_usd": 5384850.0,
+        "shortfall_covered_pct": 0.928814757958103,
+        "unfunded_loans_covered": 5083,
+        "unfunded_loans_covered_pct": 0.8532818532818532
+      },
+      {
+        "review_share": 0.3,
+        "loans_reviewed": 38705,
+        "shortfall_covered_usd": 5664000.0,
+        "shortfall_covered_pct": 0.976964407378979,
+        "unfunded_loans_covered": 5630,
+        "unfunded_loans_covered_pct": 0.9451065972805103
+      }
+    ]
+  }
+}
