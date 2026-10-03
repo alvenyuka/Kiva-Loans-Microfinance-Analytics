@@ -1,81 +1,116 @@
 """Generate Kiva_Loans_Microfinance_Analytics.ipynb.
 
 This script is the source of the notebook: edit it, regenerate, and execute the
-notebook. Never edit the .ipynb by hand."""
+notebook. Never edit the .ipynb by hand.
+
+The notebook is written to be followed and recreated step by step. It is
+organised in three parts (prepare the data, build the models, communicate the
+results); each part is broken into small numbered tasks with one short code
+cell each, and "check your work" assertions stop the run if a step goes wrong.
+The section numbers 1 to 11 are referenced from docs/METHODOLOGY.md, so keep
+them stable."""
 import json
 from pathlib import Path
 
 cells = []
 
 def md(text):
-    cells.append({"cell_type": "markdown", "metadata": {}, "source": text.splitlines(keepends=True)})
+    cells.append({"cell_type": "markdown", "metadata": {}, "source": text.strip("\n").splitlines(keepends=True)})
 
 def code(text):
-    cells.append({"cell_type": "code", "metadata": {}, "execution_count": None, "outputs": [], "source": text.splitlines(keepends=True)})
+    cells.append({"cell_type": "code", "metadata": {}, "execution_count": None, "outputs": [],
+                  "source": text.strip("\n").splitlines(keepends=True)})
 
 # =====================================================================
-# 0. TITLE
+# TITLE
 # =====================================================================
-md("""# Kiva Loans Microfinance Analytics
+md("""
+# Kiva Loans Microfinance Analytics
 
 **Which loans are at risk of not getting fully funded, and does that risk fall
 hardest on the poorest regions?**
 
-This notebook analyzes 671k+ real microloans from Kiva's public dataset (Kaggle's
-"Data Science for Good: Kiva Crowdfunding"). It combines:
+This notebook analyses 671,205 real microloans from Kiva's public dataset
+(Kaggle's "Data Science for Good: Kiva Crowdfunding"). Kiva posts each loan
+request on its website and individual lenders fund it in small amounts; a loan
+that does not reach its target in time is not fully funded.
 
-1. Exploratory analysis of loan structure, sectors, and borrower demographics.
-2. Text mining of loan-use descriptions.
-3. A geospatial join against the Multidimensional Poverty Index (MPI) by region.
-4. A funding-risk classification model, built with an explicit leakage check, and
-   explained with SHAP.
-5. A days-to-fund regression among successfully funded loans.
-6. A synthesis: which regions are both poverty-deep and funding-at-risk.
+**How this notebook is organised.** It follows the three stages of a
+model-building project, and every section is broken into small numbered tasks:
 
-All findings are correlational, not causal: this is a single-snapshot dataset.
+- **Part 1, prepare the data** (sections 1 to 6): load the loans, check their
+  quality, explore them, mine the loan descriptions, join a poverty index by
+  region, and build leakage-free features with a time-based split.
+- **Part 2, build the models** (sections 7 and 8): a funding-risk classifier,
+  compared against a baseline and explained with SHAP, and a days-to-fund
+  regression.
+- **Part 3, communicate the results** (sections 9 to 11): which regions to
+  prioritise, how much of the funding shortfall the model points at, the
+  limitations, and a results file every README number is checked against.
+
+Each task is one short code cell. Cells marked **Check your work** contain
+assertions, so the notebook stops at the step that went wrong instead of
+carrying a wrong number forward. All findings are correlational, not causal:
+this is a single-snapshot dataset.
 """)
 
 # =====================================================================
-# 1. SETUP
+# PART 1
 # =====================================================================
-md("""---
+md("""
+---
+# Part 1: Prepare the data
 
 ## 1. Setup
+
+**Task 1.1:** Import the libraries and fix the random seed, so every run gives
+the same numbers.
 """)
 
-code("""import os
+code("""
+import os
 import sys
 import time
 from pathlib import Path
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 import seaborn as sns
 
-RUN_STARTED = time.time()
-RANDOM_STATE = 42
+RUN_STARTED = time.time()          # used for the runtime in the results file
+RANDOM_STATE = 42                  # one seed for every model below
 np.random.seed(RANDOM_STATE)
 pd.set_option("display.max_columns", 30)
 pd.set_option("display.width", 200)
 sns.set_theme(style="whitegrid", context="notebook")
+""")
 
-# The feature engineering and the leakage guard live in src/features.py rather
-# than in this notebook, so that they can be unit-tested. See tests/ and the
-# Tests section of the README. Importing them here means the notebook and the
-# test suite are checking the same code, not two copies that can drift apart.
+md("""
+**Task 1.2:** Import the project's own functions from `src/features.py`. The
+feature engineering and the leakage guard live there rather than in this
+notebook so that `tests/` can check them; the notebook and the tests therefore
+run the same code.
+""")
+
+code("""
 sys.path.insert(0, str(Path.cwd() / "src"))
 from features import (
-    CATEGORICAL_COLUMNS,
-    LEAKY_COLUMNS,
-    POSTING_TIME_FEATURES,
-    add_borrower_features,
-    assert_no_leakage,
-    mark_fully_funded,
+    CATEGORICAL_COLUMNS,     # columns one-hot encoded before modelling
+    LEAKY_COLUMNS,           # columns that only exist after a loan is funded
+    POSTING_TIME_FEATURES,   # everything known when a loan is posted
+    add_borrower_features,   # parses borrower_genders into counts
+    assert_no_leakage,       # raises if a leaky column reaches the model
+    mark_fully_funded,       # the target: funded_amount >= loan_amount
 )
+""")
 
-# Where the Kiva CSVs live. Override with KIVA_DATA_DIR to keep the ~200MB of
-# data outside the repo.
+md("""
+**Task 1.3:** Point the notebook at the data. The Kiva CSVs (about 200 MB) are
+not stored in the repository; put them in `./data` or set `KIVA_DATA_DIR`.
+""")
+
+code("""
 DATA_DIR = Path(os.environ.get("KIVA_DATA_DIR", "data"))
 if not (DATA_DIR / "kiva_loans.csv").exists():
     raise FileNotFoundError(
@@ -93,15 +128,18 @@ print("Data directory:", "KIVA_DATA_DIR" if "KIVA_DATA_DIR" in os.environ else "
 # =====================================================================
 # 2. DATA LOADING
 # =====================================================================
-md("""---
-
+md("""
+---
 ## 2. Data loading
 
-Loading `kiva_loans.csv` (671k+ rows) with explicit dtypes to keep memory usage
-reasonable, and parsing the four timestamp columns.
+**Task 2.1:** Load `kiva_loans.csv`. Text columns with few distinct values
+(sector, country and so on) are read as `category`, which stores each distinct
+value once and keeps 671k rows small in memory. The four timestamps are parsed
+as dates.
 """)
 
-code("""LOAN_DTYPES = {
+code("""
+LOAN_DTYPES = {
     "id": "int32",
     "activity": "category",
     "sector": "category",
@@ -127,27 +165,61 @@ print(f"Loaded {len(df):,} rows, {df.memory_usage(deep=True).sum() / 1e6:.1f} MB
 df.head()
 """)
 
-md("""### 2.1 Data-quality checks
+code("""
+# Check your work: every loan in the file was read, once
+assert len(df) == 671_205
 """)
 
-code("""print("Missing values (top 10 columns):")
-print(df.isna().sum().sort_values(ascending=False).head(10))
-print()
+md("""
+### 2.1 Data-quality checks
+
+**Task 2.2:** Which columns have missing values?
+""")
+
+code("""
+df.isna().sum().sort_values(ascending=False).head(10)
+""")
+
+md("""
+`funded_time` is missing for loans that were never fully funded, which is
+expected and is what the model predicts. `region` is missing for 56,800 loans,
+which limits the poverty join in section 5.
+
+**Task 2.3:** Look for impossible values: duplicate loans, non-positive amounts,
+and loans funded above what they asked for.
+""")
+
+code("""
 print("Duplicate loan ids:", df["id"].duplicated().sum())
-print()
 print("loan_amount <= 0:", (df["loan_amount"] <= 0).sum())
 print("funded_amount > loan_amount (should be 0 or near-0):", (df["funded_amount"] > df["loan_amount"]).sum())
 """)
 
-# =====================================================================
-# 3. EXPLORATORY DATA ANALYSIS
-# =====================================================================
-md("""---
-
-## 3. Exploratory data analysis
+code("""
+# Check your work: no duplicate loans and no zero or negative loan amounts
+assert not df["id"].duplicated().any()
+assert (df["loan_amount"] > 0).all()
 """)
 
-code("""fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+md("""
+Two loans closed slightly above their target. They are funded loans, which is
+why the target in section 5.1 uses `>=` rather than `==`.
+""")
+
+# =====================================================================
+# 3. EDA
+# =====================================================================
+md("""
+---
+## 3. Exploratory data analysis
+
+**Task 3.1:** How large are the loans? Plot the distribution of `loan_amount`,
+once on the raw scale (cut at the 99th percentile so a few very large loans do
+not squash the chart) and once on a log scale.
+""")
+
+code("""
+fig, axes = plt.subplots(1, 2, figsize=(14, 5))
 axes[0].hist(df["loan_amount"].clip(upper=df["loan_amount"].quantile(0.99)), bins=50)
 axes[0].set_title("Loan amount distribution (99th pct clipped)")
 axes[0].set_xlabel("Loan amount (USD)")
@@ -158,14 +230,24 @@ axes[1].set_xlabel("log(1 + loan amount in USD)")
 axes[1].set_ylabel("Number of loans")
 plt.tight_layout()
 plt.show()
-
-print(df["loan_amount"].describe())
 """)
 
-md("""### 3.1 Sectors and activities
+code("""
+df["loan_amount"].describe()
 """)
 
-code("""top_sectors = df["sector"].value_counts().head(15)
+md("""
+The amounts are right-skewed: the median loan is $500, the mean $842 is pulled
+up by a long tail, and the largest is $100,000. On the log scale the shape is
+close to symmetric.
+
+### 3.1 Sectors and activities
+
+**Task 3.2:** Which sectors receive the most loans?
+""")
+
+code("""
+top_sectors = df["sector"].value_counts().head(15)
 fig, ax = plt.subplots(figsize=(9, 6))
 top_sectors.sort_values().plot(kind="barh", ax=ax)
 ax.set_title("Loan count by sector")
@@ -176,10 +258,14 @@ plt.show()
 top_sectors
 """)
 
-md("""### 3.2 Countries and regions
+md("""
+### 3.2 Countries and regions
+
+**Task 3.3:** Which countries receive the most loans?
 """)
 
-code("""top_countries = df["country"].value_counts().head(15)
+code("""
+top_countries = df["country"].value_counts().head(15)
 fig, ax = plt.subplots(figsize=(9, 6))
 top_countries.sort_values().plot(kind="barh", ax=ax)
 ax.set_title("Loan count by country (top 15)")
@@ -190,18 +276,20 @@ plt.show()
 top_countries
 """)
 
-md("""### 3.3 Borrower gender composition
+md("""
+### 3.3 Borrower gender composition
 
-`borrower_genders` is a comma-separated list, one entry per borrower on the loan
-(loans can be group loans). Parsing it into counts of male/female borrowers.
+`borrower_genders` is a comma-separated list with one entry per borrower, since
+many Kiva loans are group loans (for example "female, female, male").
+
+**Task 3.4:** Parse it into counts of male and female borrowers per loan, and
+the female share. `add_borrower_features` (in `src/features.py`, with its edge
+cases tested in `tests/test_features.py`) does this. A loan whose genders cannot
+be parsed gets `pct_female = NaN`, not 0: NaN means "we could not tell", while 0
+would claim the loan had only male borrowers, and the model reads this column.
 """)
 
-code("""# add_borrower_features comes from src/features.py. Its edge cases (group
-# loans, missing values, unrecognised labels) are covered in
-# tests/test_features.py, which is why the parsing is not written out here.
-# An unparseable row gets pct_female = NaN rather than 0: NaN means "we could
-# not tell", 0 would claim the loan had only male borrowers, and the model
-# reads this column.
+code("""
 df = add_borrower_features(df)
 
 print(f"Loans with 0 parsed borrowers: {(df['n_borrowers'] == 0).sum():,}")
@@ -209,16 +297,30 @@ print(f"Median % female borrowers per loan: {df['pct_female'].median():.2%}")
 df[["n_male", "n_female", "n_borrowers", "pct_female"]].describe()
 """)
 
-md("""### 3.4 Repayment intervals and loan volume over time
+code("""
+# Check your work: the female share is a share, and it is missing exactly where nobody was parsed
+assert df["pct_female"].dropna().between(0, 1).all()
+assert (df["pct_female"].isna() == (df["n_borrowers"] == 0)).all()
 """)
 
-code("""fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+md("""
+The 4,221 loans with no parsed borrower are the ones whose `borrower_genders` is
+missing (section 2.1). Most loans have a single female borrower, so the median
+female share is 100%.
+
+### 3.4 Repayment intervals and loan volume over time
+
+**Task 3.5:** How are loans repaid, and how did volume change over time?
+""")
+
+code("""
+fig, axes = plt.subplots(1, 2, figsize=(14, 5))
 df["repayment_interval"].value_counts().plot(kind="bar", ax=axes[0])
 axes[0].set_title("Repayment interval")
 axes[0].set_xlabel("Repayment interval")
 axes[0].set_ylabel("Number of loans")
 
-monthly = df.set_index("posted_time").resample("MS").size()
+monthly = df.set_index("posted_time").resample("MS").size()   # loans posted per calendar month
 monthly.plot(ax=axes[1])
 axes[1].set_title("Loans posted per month")
 axes[1].set_xlabel("Month posted")
@@ -228,29 +330,46 @@ plt.show()
 """)
 
 # =====================================================================
-# 4. TEXT MINING ON LOAN-USE DESCRIPTIONS
+# 4. TEXT MINING
 # =====================================================================
-md("""---
-
+md("""
+---
 ## 4. Text mining: what are these loans actually for?
 
-`use` is a free-text field ("to buy seasonal, fresh fruits to sell"). TF-IDF over
-this text surfaces the vocabulary that separates sectors. This section is
-exploratory only: the vocabulary fitted here, on every loan, is not used by the
-model. The model's term-presence features are refitted on the training period
-alone in Section 6.2.
+`use` is a free-text field ("to buy seasonal, fresh fruits to sell"). TF-IDF
+surfaces the words that characterise these descriptions.
+
+> **What's TF-IDF?** Term frequency times inverse document frequency. A word
+> scores high in a description when it appears there but is rare across all
+> descriptions, so filler words that appear everywhere score low.
+
+This section is exploratory only: the vocabulary fitted here, on every loan, is
+not used by the model. The model's text features are refitted on the training
+period alone in section 6.2.
+
+**Task 4.1:** Fill missing descriptions with an empty string and record each
+description's length (a model input).
 """)
 
-code("""from sklearn.feature_extraction.text import TfidfVectorizer
-
+code("""
 df["use"] = df["use"].fillna("")
 df["use_len"] = df["use"].str.len().astype("int32")
+""")
+
+md("""
+**Task 4.2:** Fit a 30-term TF-IDF vocabulary (single words and two-word
+phrases, English stop words removed, each term in at least 50 descriptions) and
+count how many loans use each term.
+""")
+
+code("""
+from sklearn.feature_extraction.text import TfidfVectorizer
 
 # Exploratory vocabulary over all loans. Not a model input (see 6.2).
 tfidf_eda = TfidfVectorizer(max_features=30, stop_words="english", ngram_range=(1, 2), min_df=50)
 eda_matrix = tfidf_eda.fit_transform(df["use"])
 loans_per_term = pd.Series(
-    np.asarray((eda_matrix > 0).sum(axis=0)).ravel(),
+    np.asarray((eda_matrix > 0).sum(axis=0)).ravel(),   # number of loans containing each term
     index=tfidf_eda.get_feature_names_out(),
     name="loans_using_term",
 )
@@ -260,10 +379,14 @@ print(f"Top TF-IDF terms: {list(tfidf_eda.get_feature_names_out()[:15])}")
 loans_per_term.sort_values(ascending=False).head(10)
 """)
 
-md("""### 4.1 Top terms by sector
+md("""
+### 4.1 Top terms by sector
+
+**Task 4.3:** Fit a small vocabulary within each of the five largest sectors.
 """)
 
-code("""for sector in df["sector"].value_counts().head(5).index:
+code("""
+for sector in df["sector"].value_counts().head(5).index:
     sector_mask = df["sector"] == sector
     sector_tfidf = TfidfVectorizer(max_features=8, stop_words="english", min_df=10)
     try:
@@ -273,42 +396,73 @@ code("""for sector in df["sector"].value_counts().head(5).index:
         print(f"{sector}: not enough vocabulary to extract terms")
 """)
 
-# =====================================================================
-# 5. GEOSPATIAL + POVERTY (MPI) JOIN
-# =====================================================================
-md("""---
-
-## 5. Geospatial analysis: loans against poverty depth
-
-Joining each loan's `country` + `region` against Kiva's own region-to-MPI mapping
-(`kiva_mpi_region_locations.csv`), which is a many-fewer-rows region lookup table,
-not a per-loan file. Most loans will match on `country` + `region` exactly, some
-won't (region naming isn't perfectly standardized). Join coverage is reported
-explicitly rather than assumed.
-
-Some region names in the MPI file are mis-encoded upstream: the file is valid
-UTF-8, but it stores "Maranhðo" and "Rondðnia" where the Brazilian states are
-Maranhão and Rondônia. The names print as stored rather than being repaired by
-hand.
+md("""
+Each sector's vocabulary is coherent (fertilizer and seeds in Agriculture,
+canned goods in Retail, water filters and solar lights in Personal Use), which
+suggests the text carries information a model can use.
 """)
 
-code("""mpi = pd.read_csv(DATA_DIR / "kiva_mpi_region_locations.csv")
-mpi = mpi[["country", "region", "MPI", "lat", "lon"]].drop_duplicates(subset=["country", "region"])
+# =====================================================================
+# 5. GEOSPATIAL
+# =====================================================================
+md("""
+---
+## 5. Geospatial analysis: loans against poverty depth
 
-# Coordinate sanity check. A region far from its country's median position, by more
-# than five robust standard deviations of that country's spread and at least 10
-# degrees, is mis-keyed in the upstream file, so its point is dropped from the map
-# (its MPI value, which is what the model uses, is kept).
+> **What's the MPI?** The Multidimensional Poverty Index scores a region from 0
+> to 1 on deprivations in health, education and living standards. Higher means
+> poorer.
+
+Each loan's `country` + `region` is joined against Kiva's own region-to-MPI
+lookup (`kiva_mpi_region_locations.csv`), a small table with one row per
+region. Region names are not perfectly standardised, so the join coverage is
+reported rather than assumed.
+
+Some region names in the MPI file are mis-encoded upstream: the file is valid
+UTF-8, but it stores "Maranh°o" and "Rond°nia" where the Brazilian states are
+Maranhão and Rondônia. The names print as stored rather than being repaired by
+hand.
+
+**Task 5.1:** Load the lookup table, keeping one row per country and region.
+""")
+
+code("""
+mpi = pd.read_csv(DATA_DIR / "kiva_mpi_region_locations.csv")
+mpi = mpi[["country", "region", "MPI", "lat", "lon"]].drop_duplicates(subset=["country", "region"])
+print(f"MPI lookup: {len(mpi):,} regions, {mpi['MPI'].notna().sum():,} with an MPI score")
+""")
+
+md("""
+**Task 5.2:** Check the coordinates before drawing a map. A region whose point
+lies far from the rest of its country (more than five robust standard
+deviations of that country's spread, and at least 10 degrees) is mis-keyed in
+the upstream file. Its map point is dropped; its MPI value, which is what the
+model uses, is kept.
+""")
+
+code("""
 by_country = mpi.groupby("country")[["lat", "lon"]]
-offset = (mpi[["lat", "lon"]] - by_country.transform("median")).abs()
-spread = by_country.transform(lambda s: (s - s.median()).abs().median()) * 1.4826
+offset = (mpi[["lat", "lon"]] - by_country.transform("median")).abs()                # distance from the country's median point
+spread = by_country.transform(lambda s: (s - s.median()).abs().median()) * 1.4826     # robust standard deviation
 limit = np.maximum(10, 5 * spread)
 misplaced = (offset["lat"] > limit["lat"]) | (offset["lon"] > limit["lon"])
 n_misplaced, n_located = int(misplaced.sum()), int(mpi["lat"].notna().sum())
 print(f"Coordinates dropped as misplaced: {n_misplaced} of {n_located} located regions, for example:")
 print(mpi.loc[misplaced, ["country", "region", "lat", "lon"]].head(8).to_string(index=False))
 mpi.loc[misplaced, ["lat", "lon"]] = np.nan
+""")
 
+md("""
+Herat in Afghanistan placed in South-East Asia, or Oruro in Bolivia placed in
+the Himalayas, are clearly wrong, so dropping these points loses nothing real.
+
+**Task 5.3:** Join the MPI onto the loans and report how many matched.
+`validate="many_to_one"` makes pandas raise an error if a region appeared twice
+in the lookup, which would silently duplicate loans.
+""")
+
+code("""
+n_before = len(df)
 df = df.merge(mpi, on=["country", "region"], how="left", validate="many_to_one")
 
 coverage = df["MPI"].notna().mean()
@@ -316,18 +470,39 @@ print(f"MPI join coverage: {coverage:.1%} of loans matched to a region-level MPI
 print(f"Loans matched: {df['MPI'].notna().sum():,} / {len(df):,}")
 """)
 
-md("""### 5.1 Funding success vs. poverty depth, by region
+code("""
+# Check your work: the join added columns, not loans
+assert len(df) == n_before
 """)
 
-code("""# The funding target and the settled-outcome rule are the ones the model uses
-# (Section 6.1 measures why loans posted within 60 days of the snapshot are left
-# out: many of them were still fundraising).
-CENSOR_DAYS = 60
-df["fully_funded"] = mark_fully_funded(df)
-snapshot_end = df["posted_time"].max()
-age_days = (snapshot_end - df["posted_time"]).dt.days
-settled = age_days > CENSOR_DAYS
+md("""
+Only 7.6% of loans match. The free-text `region` field in the loans file does
+not line up with the lookup's region names well enough for an exact join, so
+every MPI result below describes a small, non-random subset (see section 10).
 
+### 5.1 Funding success vs. poverty depth, by region
+
+**Task 5.4:** Define the target and the loans whose outcome is known. A loan is
+fully funded when it raised at least what it asked for. Loans posted in the
+last 60 days before the data snapshot may still have been fundraising, so their
+outcome is not yet known; section 6.1 measures this.
+""")
+
+code("""
+CENSOR_DAYS = 60
+df["fully_funded"] = mark_fully_funded(df)          # 1 if funded_amount >= loan_amount
+snapshot_end = df["posted_time"].max()              # the last posting date in the data
+age_days = (snapshot_end - df["posted_time"]).dt.days
+settled = age_days > CENSOR_DAYS                    # outcome known: posted more than 60 days before the snapshot
+print(f"Settled loans: {settled.sum():,} of {len(df):,}")
+""")
+
+md("""
+**Task 5.5:** Summarise each region with a known MPI and at least 20 settled
+loans: number of loans, total amount, share fully funded, and MPI.
+""")
+
+code("""
 region_summary = (
     df[settled].dropna(subset=["MPI"])
     .groupby(["country", "region"], observed=True)
@@ -342,7 +517,16 @@ region_summary = (
     .reset_index()
 )
 region_summary = region_summary[region_summary["n_loans"] >= 20]
+region_summary.sort_values("MPI", ascending=False).head(10)
+""")
 
+md("""
+**Task 5.6:** Measure the association between poverty and funding success
+across these regions, with both the Pearson correlation and the Spearman rank
+correlation (which is not pulled around by a few extreme regions).
+""")
+
+code("""
 mpi_corr = region_summary["MPI"].corr(region_summary["pct_fully_funded"])
 mpi_corr_rank = region_summary["MPI"].corr(region_summary["pct_fully_funded"], method="spearman")
 region_loan_share = region_summary["n_loans"].sum() / settled.sum()
@@ -350,22 +534,26 @@ print(f"Regions with >=20 settled loans and known MPI: {len(region_summary)}")
 print(f"Settled loans in those regions: {region_summary['n_loans'].sum():,} ({region_loan_share:.1%} of settled loans)")
 print(f"Correlation between MPI and share fully funded (Pearson):  {mpi_corr:.3f}")
 print(f"Rank correlation between MPI and share fully funded (Spearman): {mpi_corr_rank:.3f}")
-region_summary.sort_values("MPI", ascending=False).head(10)
 """)
 
-md("""**Does funding risk fall hardest on the poorest regions?** Not in the data that
+md("""
+**Does funding risk fall hardest on the poorest regions?** Not in the data that
 can answer it. Across the regions printed above (at least 20 settled loans and a
-known MPI), both correlations are positive: in this matched subset, poorer regions
-were funded slightly more often, not less. The subset holds only the share of
-settled loans printed above, and the correlation is ecological, measured across
-regions rather than borrowers (see Limitations), so it does not show that poorer
-borrowers are favoured.
+known MPI), both correlations are positive: in this matched subset, poorer
+regions were funded slightly more often, not less. The subset holds only the
+share of settled loans printed above, and the correlation is ecological,
+measured across regions rather than borrowers (see section 10), so it does not
+show that poorer borrowers are favoured.
+
+### 5.2 Map: loan volume and funding success against poverty depth
+
+**Task 5.7:** Map each region, sized by loan volume and coloured by funding
+success.
 """)
 
-md("""### 5.2 Map: loan volume and funding success against poverty depth
-""")
-
-code("""import plotly.express as px
+code("""
+import plotly.express as px
+from IPython.display import Image, display
 
 fig = px.scatter_geo(
     region_summary,
@@ -380,10 +568,8 @@ fig = px.scatter_geo(
 )
 fig.update_layout(height=550)
 
-# A static PNG is shown inline so the map renders on GitHub, which does not
-# display interactive Plotly output. Without kaleido, fall back to the
-# interactive figure.
-from IPython.display import Image, display
+# A static PNG is shown so the map renders on GitHub, which does not display
+# interactive Plotly output. Without kaleido, fall back to the interactive figure.
 try:
     fig.write_image("figs/geo_funding_vs_poverty.png", scale=2)
     display(Image("figs/geo_funding_vs_poverty.png", width=900))
@@ -395,35 +581,40 @@ except Exception as e:
 # =====================================================================
 # 6. FEATURE ENGINEERING
 # =====================================================================
-md("""---
-
+md("""
+---
 ## 6. Feature engineering
 
 ### 6.1 The leakage check
 
-`funded_time`, `disbursed_time`, and `lender_count` are **consequences** of a loan
-being funded. They don't exist yet at the moment a loan is posted, so a model
-using them to predict "will this loan be funded" would be cheating. A leaked
-column does not break a model; it improves the score, so nothing downstream
-would flag it. The guard below is therefore executed, not described. They are
-explicitly excluded.
+`funded_time`, `disbursed_time`, `lender_count` and `funded_amount` are
+**consequences** of a loan being funded. They do not exist yet when a loan is
+posted, so a model that used them to predict "will this loan be funded" would be
+reading the answer. A leaked column does not break a model; it improves the
+score, so nothing downstream would flag it. That is why the guard below is run,
+not just described.
+
+**Task 6.1:** Add three features that are known at posting time: the month and
+weekday of posting, and the number of months since the first loan in the data
+(a time trend). The trend is offered to the model only as a separate candidate
+in section 7, so that the month of posting cannot quietly stand in for a
+platform-wide trend.
 """)
 
-code("""# mark_fully_funded (applied in 5.1), LEAKY_COLUMNS and POSTING_TIME_FEATURES all
-# come from src/features.py, so the definition the model uses is the definition
-# the tests check. >= rather than == on purpose: a loan that closes slightly over
-# its target is funded.
+code("""
 df["post_month"] = df["posted_time"].dt.month.astype("int8")
 df["post_dow"] = df["posted_time"].dt.dayofweek.astype("int8")
-# Time-trend control: months since the first loan in the data. Known at posting
-# time. It is offered to the model selection in Section 7 as a separate LightGBM
-# candidate, so that post_month cannot stand in for a platform-wide trend unseen.
 TREND_COLUMN = "months_since_start"
 df[TREND_COLUMN] = ((df["posted_time"] - df["posted_time"].min()).dt.days / 30.4375).astype("float32")
+""")
 
-# Right-censoring. A loan with no funded_time when the snapshot was taken may still
-# have been fundraising, so "not funded" is only known for loans posted well before
-# the snapshot. Measure it; `settled` (defined in 5.1) keeps loans whose outcome was known.
+md("""
+**Task 6.2:** Measure right-censoring. A loan with no `funded_time` when the
+snapshot was taken may simply still have been fundraising. Tabulate the funded
+rate by how many days before the snapshot the loan was posted.
+""")
+
+code("""
 age_band = pd.cut(age_days, [-1, 7, 14, 21, 30, 45, 60, 90, 10**6],
                   labels=["0-7", "8-14", "15-21", "22-30", "31-45", "46-60", "61-90", ">90"])
 censoring = df.groupby(age_band, observed=True)["fully_funded"].agg(funded_rate="mean", loans="size")
@@ -431,7 +622,19 @@ print(f"Snapshot ends {snapshot_end.date()}. Funded rate by days between posting
 print(censoring.to_string(float_format=lambda v: f"{v:.3f}"))
 print(f"Excluded {(~settled).sum():,} loans ({(~settled).mean():.1%}) posted within {CENSOR_DAYS} days of the snapshot.")
 print(f"Settled loans: {settled.sum():,}, of which {1 - df.loc[settled, 'fully_funded'].mean():.1%} not fully funded")
+""")
 
+md("""
+Loans posted in the last three weeks show funded rates between 15% and 35%,
+against more than 90% for loans older than 60 days. Counting them as "not funded" would
+fill the at-risk class with loans that were still raising money, so they are
+left out (the `settled` mask from Task 5.4).
+
+**Task 6.3:** Build the modelling table from settled loans and posting-time
+columns only, then run the leakage guard.
+""")
+
+code("""
 model_df = df.loc[settled, POSTING_TIME_FEATURES + [TREND_COLUMN, "fully_funded", "use"]]
 model_df = model_df.dropna(subset=["loan_amount", "term_in_months"])
 
@@ -439,48 +642,58 @@ print(f"Modeling rows: {len(model_df):,} (dropped {settled.sum() - len(model_df)
 print(f"Excluded as leakage: {LEAKY_COLUMNS}")
 print(f"Posting-time inputs: {len(POSTING_TIME_FEATURES)} columns and the use text, plus the optional time trend")
 
-# The guard, run rather than described. It raises LeakageError naming every
-# offending column. This is the check that has to fire, because a leaked column
-# does not break the model, it improves its score, so nothing downstream would
-# ever flag it.
+# The guard: raises LeakageError naming any post-outcome column in the feature set
 assert_no_leakage(model_df.drop(columns=["fully_funded", "use"]).columns)
 print("Leakage guard passed: no post-outcome column reached the feature set.")
-
 model_df.head()
 """)
 
-md("""### 6.2 Time-based split, and preprocessing fitted on earlier loans only
+md("""
+### 6.2 Time-based split, and preprocessing fitted on earlier loans only
 
-Loans are split by posting date, the way a platform would use a model on loans it
-has not yet seen:
+Loans are split by posting date, the way a platform would use a model on loans
+it has not yet seen:
 
-- **Training period:** the earliest 80% of settled loans. Within it, the earliest
-  80% form the **fit slice** and the latest 20% the **validation slice**, which is
-  used to choose the model.
+- **Training period:** the earliest 80% of settled loans. Within it, the
+  earliest 80% form the **fit slice** and the latest 20% the **validation
+  slice**, which is used to choose the model.
 - **Test period:** the most recent 20%, scored once by the chosen model after it
   is refitted on the whole training period.
 
-The TF-IDF vocabulary and the medians used to fill missing values are fitted on
-the fit slice for model selection, and on the whole training period for the final
-model, so no stage sees text or medians from the loans it is scored on. A
-missing-poverty flag (`MPI_missing`) is added before the fill, so the model can
-tell "median poverty" from "no MPI match".
+**Task 6.4:** Find the two cut-off dates and label every loan.
 """)
 
-code("""posted = df.loc[model_df.index, "posted_time"]
+code("""
+posted = df.loc[model_df.index, "posted_time"]
 TRAIN_SHARE = 0.8
-split_date = posted.quantile(TRAIN_SHARE)
+split_date = posted.quantile(TRAIN_SHARE)             # end of the training period
 is_train = posted <= split_date
-val_cut = posted[is_train].quantile(TRAIN_SHARE)
+val_cut = posted[is_train].quantile(TRAIN_SHARE)      # end of the fit slice
 is_fit = is_train & (posted <= val_cut)
 is_val = is_train & (posted > val_cut)
 print(f"Fit slice:        posted up to {val_cut.date()} ({is_fit.sum():,} loans)")
 print(f"Validation slice: posted after it, up to {split_date.date()} ({is_val.sum():,} loans)")
 print(f"Test period:      posted after {split_date.date()} ({(~is_train).sum():,} loans)")
+""")
 
+code("""
+# Check your work: every loan is in exactly one slice, and the slices follow each other in time
+assert (is_fit.astype(int) + is_val.astype(int) + (~is_train).astype(int) == 1).all()
+assert posted[is_fit].max() <= posted[is_val].min() and posted[is_val].max() <= posted[~is_train].min()
+""")
 
+md("""
+**Task 6.5:** Write the function that turns `model_df` into a numeric feature
+matrix. Anything learned from data (the text vocabulary, the medians used to
+fill missing values) is learned from `fit_rows` only, so no stage sees text or
+medians from the loans it is scored on. A missing-poverty flag (`MPI_missing`)
+is added before the fill, so the model can tell "median poverty" from "no MPI
+match".
+""")
+
+code("""
 def build_matrix(fit_rows):
-    # Encode model_df, with the text vocabulary and missing-value medians fitted on fit_rows only.
+    # 1. Text: learn a 30-term vocabulary from fit_rows, mark which terms each loan's description contains
     vec = TfidfVectorizer(max_features=30, stop_words="english", ngram_range=(1, 2), min_df=50)
     vec.fit(model_df.loc[fit_rows, "use"])
     terms = pd.DataFrame(
@@ -488,13 +701,24 @@ def build_matrix(fit_rows):
         columns=[f"use_tfidf_{t.replace(' ', '_')}" for t in vec.get_feature_names_out()],
         index=model_df.index,
     )
+    # 2. Categories: one 0/1 column per sector, activity, country and repayment interval
     encoded = pd.get_dummies(pd.concat([model_df.drop(columns=["use", "fully_funded"]), terms], axis=1),
                              columns=CATEGORICAL_COLUMNS, drop_first=True)
+    # 3. Missing values: flag a missing MPI, then fill MPI and pct_female with fit_rows medians
     encoded["MPI_missing"] = encoded["MPI"].isna().astype("int8")
     medians = {c: encoded.loc[fit_rows, c].median() for c in ("MPI", "pct_female")}
     return encoded.fillna(medians), vec, medians
+""")
 
+md("""
+**Task 6.6:** Build two matrices: one learned from the fit slice, for choosing
+the model, and one learned from the whole training period, for the final model.
+Then run the leakage guard again: one-hot encoding creates new column names, and
+a suffixed column such as `funded_amount_bucket` would get past a check that ran
+only before encoding.
+""")
 
+code("""
 y = model_df["fully_funded"]
 X_sel, _, _ = build_matrix(is_fit)                      # for model selection
 X, tfidf_train, train_medians = build_matrix(is_train)  # for the final model
@@ -505,9 +729,7 @@ def model_columns(frame, with_trend):
     # The two matrices can hold different text terms, so columns are chosen per matrix.
     return [c for c in frame.columns if with_trend or c != TREND_COLUMN]
 
-# Re-run the guard after one-hot encoding. Encoding creates new column names,
-# and a suffixed column such as funded_amount_bucket would sail past a check
-# that only ran before the encoding step.
+
 assert_no_leakage(ALL_COLUMNS)
 
 print(f"X shape: {X.shape} ({len(model_columns(X, False))} base features, plus {TREND_COLUMN})")
@@ -515,51 +737,73 @@ for label, rows in (("fit", is_fit), ("validation", is_val), ("test", ~is_train)
     print(f"Not fully funded, {label}: {1 - y[rows].mean():.1%}")
 """)
 
+md("""
+Between about 5% and 10% of loans go unfunded in each slice, so the at-risk
+class is the minority. That shapes the choice of metric in section 7.
+""")
+
 # =====================================================================
-# 7. FUNDING-RISK MODEL
+# PART 2
 # =====================================================================
-md("""---
+md("""
+---
+# Part 2: Build the models
 
 ## 7. Funding-risk model
 
-Comparing Logistic Regression, Random Forest and LightGBM on `fully_funded`, plus
-a fourth candidate: the same LightGBM given the time-trend column. The target is
-imbalanced (the shares are printed in 6.2), skewed enough that accuracy would be
-misleading.
+The question is *which loans are at risk of not getting fully funded*, so what
+matters is performance on the minority "not funded" class (label 0).
 
-This notebook's stated question is *which loans are at risk of not getting
-fully funded*, i.e. performance on the minority "not funded" class (label 0)
-is what actually matters, not performance on the majority "funded" class.
-`sklearn.metrics.average_precision_score` defaults to scoring the positive
-label (1 = funded), so that number alone would silently answer the wrong
-question. It would mostly reflect how easy the majority class is: its floor is
-the funded share of the test set, printed below, so a majority-class PR-AUC
-close to 1 is a much smaller lift than it looks. We report **both**:
+> **What's PR-AUC?** Rank the loans from most to least at risk and walk down the
+> list. Precision is the share of loans flagged so far that really went
+> unfunded; recall is the share of all unfunded loans flagged so far. PR-AUC
+> (average precision) summarises that trade-off in one number. A model that
+> ranks at random scores the share of unfunded loans, so that share is the
+> floor.
 
-- **PR-AUC (funded, majority class)**: `average_precision_score(y_test, y_proba)`
-- **PR-AUC (at-risk, minority class)**: `average_precision_score(1 - y_test, 1 - y_proba)`,
-  which reframes "predict class 1" as "predict class 0" by flipping both the
-  true labels and the model scores
+`average_precision_score` scores the positive label (1 = funded) by default,
+which would answer the wrong question and look good regardless (its floor is
+about 95%). Both are reported:
 
-The **minority-class PR-AUC is the headline metric**. The model is chosen on it
-using the validation slice only. The winner is then refitted on the whole
-training period and scored on the test period. The other candidates are refitted
-and scored too, for reference; their test scores play no part in the choice.
+- **PR-AUC (at-risk, minority class), the headline:**
+  `average_precision_score(1 - y_test, 1 - y_proba)`, which flips both the
+  labels and the scores so that "not funded" is the class being found
+- **PR-AUC (funded, majority class):** `average_precision_score(y_test, y_proba)`
 
-All four models use balanced class weights, so their outputs rank loans by risk
-but are not calibrated funding probabilities. They are called scores below.
+**Task 7.1:** Write the headline metric, and set the baseline: a score that
+ranks every loan the same.
 """)
 
-code("""from sklearn.linear_model import LogisticRegression
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.pipeline import make_pipeline
-from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import average_precision_score, roc_auc_score, classification_report
-import lightgbm as lgb
+code("""
+from sklearn.metrics import average_precision_score, classification_report, roc_auc_score
 
 
 def at_risk_pr_auc(y_true, funded_score):
+    # PR-AUC for the not-funded class: flip the labels and the scores
     return average_precision_score(1 - y_true, 1 - funded_score)
+
+
+# Baseline: the same score for every validation loan, so no loan is ranked above another
+baseline_val = at_risk_pr_auc(y[is_val], np.full(is_val.sum(), 0.5))
+print(f"Baseline validation PR-AUC (at-risk): {baseline_val:.4f}  (= the share not funded)")
+""")
+
+md("""
+Any model below has to beat that number to be worth anything.
+
+**Task 7.2:** Define four candidate models: logistic regression, a random
+forest, LightGBM (gradient-boosted trees), and the same LightGBM given the time
+trend. All four use balanced class weights, so the rare unfunded loans count as
+much as the funded ones during fitting. Their outputs therefore rank loans by
+risk but are not calibrated probabilities; they are called scores below.
+""")
+
+code("""
+import lightgbm as lgb
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import StandardScaler
 
 
 def make_lgbm():
@@ -567,6 +811,7 @@ def make_lgbm():
                               class_weight="balanced", random_state=RANDOM_STATE, verbosity=-1)
 
 
+# name: (function that builds an unfitted model, whether it gets the time trend)
 CANDIDATES = {
     "Logistic Regression": (lambda: make_pipeline(
         StandardScaler(),
@@ -576,8 +821,15 @@ CANDIDATES = {
     "LightGBM": (make_lgbm, False),
     "LightGBM + time trend": (make_lgbm, True),
 }
+""")
 
-# Stage 1: fit on the fit slice, score the validation slice, choose.
+md("""
+**Task 7.3:** Choose the model on the validation slice only. Fit each candidate
+on the fit slice, score the validation slice, and keep the highest at-risk
+PR-AUC. The test period is not touched.
+""")
+
+code("""
 validation_pr_auc = {}
 for name, (make, with_trend) in CANDIDATES.items():
     cols = model_columns(X_sel, with_trend)
@@ -590,8 +842,18 @@ best_model_name = max(validation_pr_auc, key=validation_pr_auc.get)
 print(f"Chosen on the validation slice: {best_model_name}")
 """)
 
-code("""# Stage 2: refit every candidate on the whole training period and score the test
-# period. The choice above is already fixed; the non-chosen rows are for reference.
+code("""
+# Check your work: every candidate beats the constant-score baseline on validation
+assert min(validation_pr_auc.values()) > baseline_val
+""")
+
+md("""
+**Task 7.4:** Refit every candidate on the whole training period and score the
+test period once. The choice above is already fixed; the other rows are shown
+for reference and play no part in it.
+""")
+
+code("""
 X_train, X_test = X[is_train], X[~is_train]
 y_train, y_test = y[is_train], y[~is_train]
 test_pr_auc, test_pr_auc_majority = {}, {}
@@ -602,7 +864,7 @@ for name, (make, with_trend) in CANDIDATES.items():
     test_pr_auc[name] = at_risk_pr_auc(y_test, proba)
     test_pr_auc_majority[name] = average_precision_score(y_test, proba)
     if name == best_model_name:
-        best_model, y_proba = m, proba
+        best_model, y_proba = m, proba        # keep the chosen model and its test scores
 del m
 
 model_table = pd.DataFrame({
@@ -613,10 +875,19 @@ model_table = pd.DataFrame({
 print(model_table.to_string(float_format=lambda v: f"{v:.4f}"))
 """)
 
-md("""### 7.1 Chosen model: full evaluation on the test period
+md("""
+The time-trend LightGBM was chosen on validation. On the test period the plain
+LightGBM scores slightly higher, but switching to it now would be choosing on
+the test set, which would make the test score optimistic. The chosen model is
+kept, and both numbers are reported.
+
+### 7.1 Chosen model: full evaluation on the test period
+
+**Task 7.5:** Score the chosen model on the test period, against both floors.
 """)
 
-code("""pr_auc_majority = average_precision_score(y_test, y_proba)
+code("""
+pr_auc_majority = average_precision_score(y_test, y_proba)
 pr_auc_minority = at_risk_pr_auc(y_test, y_proba)
 roc_auc = roc_auc_score(y_test, y_proba)
 print(f"Chosen model (on validation PR-AUC): {best_model_name}")
@@ -625,17 +896,41 @@ print(f"PR-AUC (funded, majority class):             {pr_auc_majority:.4f}")
 print(f"Test-set funded share (majority-class PR-AUC floor): {y_test.mean():.3f}")
 print(f"Test-set not-funded share (minority-class PR-AUC floor): {1 - y_test.mean():.3f}")
 print(f"ROC-AUC: {roc_auc:.4f}")
+""")
+
+md("""
+The headline PR-AUC is about eight times its floor of 0.046. The funded-class
+number looks far better but barely clears its own floor of 0.954, which is why
+it is not the headline.
+
+**Task 7.6:** Look at precision and recall at the default cut-off of 0.5.
+""")
+
+code("""
 report = classification_report(y_test, (y_proba >= 0.5).astype(int), output_dict=True)
 print(classification_report(y_test, (y_proba >= 0.5).astype(int)))
 """)
 
-md("""### 7.2 SHAP explainability
+md("""
+For class 0 (not funded), recall is the share of unfunded test loans the model
+flags, and precision the share of flagged loans that really went unfunded. A
+high recall with a low precision fits a review queue: most at-risk loans are
+caught, at the cost of reviewing many that would have been funded anyway.
+
+### 7.2 SHAP explainability
+
+> **What's SHAP?** For one loan, SHAP splits the model's score into a
+> contribution from each feature, measured against the average loan. Averaging
+> the size of those contributions over many loans ranks the features by how much
+> they move the model.
+
+**Task 7.7:** Compute SHAP values for 1,000 test loans.
 """)
 
-code("""import warnings
+code("""
+import warnings
 
-# SHAP pulls in tqdm, which warns when ipywidgets is absent, and warns that
-# LightGBM's binary output format changed. Neither affects the values below.
+# SHAP warns about missing progress-bar widgets and LightGBM's output format; neither affects the values.
 warnings.filterwarnings("ignore", message="IProgress not found")
 warnings.filterwarnings("ignore", message="LightGBM binary classifier with TreeExplainer")
 warnings.filterwarnings("ignore", message="The NumPy global RNG was seeded")
@@ -649,6 +944,7 @@ if best_model_name == "Logistic Regression":
     shap_values = shap.LinearExplainer(linear, background).shap_values(scaler.transform(sample))
 else:
     shap_values = shap.TreeExplainer(best_model).shap_values(sample)
+# Different SHAP versions return the values in different shapes; keep the "funded" class as a 2-D array
 if isinstance(shap_values, list):
     shap_values = shap_values[1]
 shap_values = np.asarray(shap_values)
@@ -658,7 +954,13 @@ if shap_values.ndim == 3:
 mean_abs_shap = pd.Series(np.abs(shap_values).mean(axis=0), index=best_cols).sort_values(ascending=False)
 print(f"Top 12 features by mean |SHAP| ({best_model_name}, 1,000 test loans, log-odds of being funded):")
 print(mean_abs_shap.head(12).to_string(float_format=lambda v: f"{v:.4f}"))
+""")
 
+md("""
+**Task 7.8:** Plot the ranking.
+""")
+
+code("""
 shap.summary_plot(shap_values, sample, plot_type="bar", max_display=12, show=False)
 plt.title(f"Top features by mean |SHAP| ({best_model_name})")
 plt.xlabel("Mean |SHAP value| (impact on log-odds of being funded)")
@@ -668,20 +970,23 @@ plt.show()
 """)
 
 # =====================================================================
-# 8. DAYS-TO-FUND REGRESSION
+# 8. DAYS TO FUND
 # =====================================================================
-md("""---
-
+md("""
+---
 ## 8. How long does it take to get funded?
 
-Among loans that *did* get fully funded, regressing `(funded_time - posted_time)`
-in days against the same posting-time feature set (no separate leakage question
-here: the population is already restricted to funded loans, and the target is a
-time gap, not the funding outcome itself). The comparator is a naive forecast:
-the median days-to-fund of the training period, given to every test loan.
+Among loans that *did* get fully funded, predict the number of days from posting
+to full funding from the same posting-time features. There is no separate
+leakage question here: the population is already restricted to funded loans,
+and the target is a time gap, not the funding outcome itself.
+
+**Task 8.1:** Build the regression table: settled, funded loans, with the text
+vocabulary and medians learned from the training period.
 """)
 
-code("""funded_only = df[(df["fully_funded"] == 1) & settled].copy()
+code("""
+funded_only = df[(df["fully_funded"] == 1) & settled].copy()
 funded_only["days_to_fund"] = (funded_only["funded_time"] - funded_only["posted_time"]).dt.total_seconds() / 86400
 funded_only = funded_only[funded_only["days_to_fund"] >= 0]
 
@@ -694,18 +999,37 @@ reg_df = pd.concat([funded_only[POSTING_TIME_FEATURES], reg_terms, funded_only[[
 reg_encoded = pd.get_dummies(reg_df, columns=CATEGORICAL_COLUMNS, drop_first=True)
 reg_encoded["MPI_missing"] = reg_encoded["MPI"].isna().astype("int8")
 y_reg = reg_encoded.pop("days_to_fund")
-reg_train = funded_only["posted_time"] <= split_date
+reg_train = funded_only["posted_time"] <= split_date          # same date split as section 6.2
 X_reg = reg_encoded.fillna({c: reg_encoded.loc[reg_train, c].median() for c in ("MPI", "pct_female")})
 
 print(f"Regression rows: {len(X_reg):,}")
 print(funded_only['days_to_fund'].describe())
 """)
 
-code("""from sklearn.ensemble import RandomForestRegressor
+md("""
+**Task 8.2:** Set the baseline first: give every test loan the median
+days-to-fund of the training period, and measure the mean absolute error (MAE),
+the average number of days the prediction is off by.
+""")
+
+code("""
 from sklearn.metrics import mean_absolute_error, r2_score
 
 Xr_train, Xr_test = X_reg[reg_train], X_reg[~reg_train]
 yr_train, yr_test = y_reg[reg_train], y_reg[~reg_train]
+
+baseline_days = float(yr_train.median())
+baseline_mae = mean_absolute_error(yr_test, np.full(len(yr_test), baseline_days))
+print(f"Test loans: {len(yr_test):,}")
+print(f"MAE, naive baseline (train median {baseline_days:.1f} days): {baseline_mae:.2f} days")
+""")
+
+md("""
+**Task 8.3:** Fit a random forest and compare it with the baseline.
+""")
+
+code("""
+from sklearn.ensemble import RandomForestRegressor
 
 reg_model = RandomForestRegressor(n_estimators=150, max_depth=10, n_jobs=-1, random_state=RANDOM_STATE)
 reg_model.fit(Xr_train, yr_train)
@@ -713,32 +1037,46 @@ yr_pred = reg_model.predict(Xr_test)
 
 reg_mae = mean_absolute_error(yr_test, yr_pred)
 reg_r2 = r2_score(yr_test, yr_pred)
-baseline_days = float(yr_train.median())
-baseline_mae = mean_absolute_error(yr_test, np.full(len(yr_test), baseline_days))
-print(f"Test loans: {len(yr_test):,}")
 print(f"MAE, random forest:                        {reg_mae:.2f} days")
 print(f"MAE, naive baseline (train median {baseline_days:.1f} days): {baseline_mae:.2f} days")
 print(f"R-squared, random forest: {reg_r2:.3f}")
 """)
 
+code("""
+# Check your work: the model beats the naive baseline
+assert reg_mae < baseline_mae
+""")
+
+md("""
+The forest is about a day closer than the baseline on average, and explains
+about a quarter of the variation (R-squared): most of what decides how fast a
+loan funds is not in the information available when it is posted.
+""")
+
 # =====================================================================
-# 9. SYNTHESIS: PRIORITY REGIONS
+# PART 3
 # =====================================================================
-md("""---
+md("""
+---
+# Part 3: Communicate the results
 
 ## 9. Synthesis: where should Kiva focus promotion?
 
-Combining the model's funding-risk score (aggregated to region level, using the
-same test-period scores from Section 7) with each region's MPI. The scores are not
-calibrated probabilities (balanced class weights move them towards 0.5), so they
-are not multiplied by MPI. Instead each region is ranked twice among the regions
-in the table, on poverty (higher MPI ranks higher) and on funding risk (lower mean
-score ranks higher), and the **relative priority index** is the product of the two
-percentile ranks: 1 means the poorest and riskiest region in the table. It orders
-regions; its scale carries no other meaning.
+Combine the model's funding-risk score, averaged by region over the test period,
+with each region's MPI. The scores are not calibrated probabilities (balanced
+class weights move them towards 0.5), so they are not multiplied by MPI.
+Instead each region is ranked twice among the regions in the table, on poverty
+(higher MPI ranks higher) and on funding risk (lower mean score ranks higher),
+and the **relative priority index** is the product of the two percentile ranks:
+1 means the poorest and riskiest region in the table. It orders regions; its
+scale carries no other meaning.
+
+**Task 9.1:** Average the test-period scores by region, for regions with a known
+MPI and at least 10 test loans.
 """)
 
-code("""test_region_info = df.loc[X_test.index, ["country", "region", "MPI"]].copy()
+code("""
+test_region_info = df.loc[X_test.index, ["country", "region", "MPI"]].copy()
 test_region_info["model_score"] = y_proba  # higher = more likely to be funded; a ranking score
 
 priority = (
@@ -752,29 +1090,41 @@ priority = (
     .reset_index()
 )
 priority = priority[priority["n_test_loans"] >= 10].copy()
-priority["poverty_rank"] = priority["MPI"].rank(pct=True)
-priority["risk_rank"] = priority["mean_model_score"].rank(pct=True, ascending=False)
+print(f"Regions in priority table (at least 10 test loans with a known MPI): {len(priority)}")
+""")
+
+md("""
+**Task 9.2:** Rank the regions and compute the priority index.
+""")
+
+code("""
+priority["poverty_rank"] = priority["MPI"].rank(pct=True)                               # 1 = poorest
+priority["risk_rank"] = priority["mean_model_score"].rank(pct=True, ascending=False)    # 1 = least likely funded
 priority["priority_index"] = priority["poverty_rank"] * priority["risk_rank"]
 priority = priority.sort_values(["priority_index", "MPI"], ascending=False)
-
-print(f"Regions in priority table (at least 10 test loans with a known MPI): {len(priority)}")
 priority.head(15)
 """)
 
-md("""### 9.1 Business impact: how much of the funding shortfall does the score point at?
+md("""
+### 9.1 Business impact: how much of the funding shortfall does the score point at?
 
-A loan's shortfall is the part of its requested amount that lenders never funded, in US
-dollars. If Kiva reviewed only the loans the model ranks riskiest in the test period (for
-example to feature them or add matching funds), what share of the total shortfall would
-those reviews cover? `src/impact.py` does the arithmetic and is covered by the tests.
+A loan's **shortfall** is the part of its requested amount that lenders never
+funded, in US dollars. If Kiva reviewed only the loans the model ranks riskiest
+in the test period (for example to feature them or add matching funds), what
+share of the total shortfall would those reviews cover? `src/impact.py` does the
+arithmetic and is covered by the tests.
+
+**Task 9.3:** Compute the shortfall covered when the riskiest 5%, 10%, 20% and
+30% of test loans are reviewed, and by the loans flagged at the 0.5 cut-off.
 """)
 
-code("""from impact import funding_shortfall, shortfall_capture
+code("""
+from impact import funding_shortfall, shortfall_capture
 
 test_loans = df.loc[X_test.index, ["loan_amount", "funded_amount"]]
 risk = 1 - y_proba  # higher = more likely to go unfunded
 capture = shortfall_capture(risk, test_loans["loan_amount"], test_loans["funded_amount"])
-shortfall = funding_shortfall(test_loans["loan_amount"], test_loans["funded_amount"])
+shortfall = funding_shortfall(test_loans["loan_amount"], test_loans["funded_amount"])   # loan_amount - funded_amount, never below 0
 total_shortfall = shortfall.sum()
 flagged = y_proba < 0.5  # the same default threshold as the classification report in 7.1
 flagged_cover = shortfall[flagged].sum()
@@ -785,7 +1135,14 @@ print(f"Loans flagged at-risk at the default threshold: {flagged.sum():,} "
 print(capture.to_string(index=False, formatters={
     "review_share": "{:.0%}".format, "shortfall_covered_usd": "${:,.0f}".format,
     "shortfall_covered_pct": "{:.1%}".format, "unfunded_loans_covered_pct": "{:.1%}".format}))
+""")
 
+md("""
+**Task 9.4:** Plot the shortfall covered against the share of loans reviewed,
+next to what a random review would cover.
+""")
+
+code("""
 shares = np.linspace(0, 1, 101)
 curve = shortfall_capture(risk, test_loans["loan_amount"], test_loans["funded_amount"], review_shares=shares[1:])
 fig, ax = plt.subplots(figsize=(8, 4.5))
@@ -806,8 +1163,17 @@ plt.savefig("figs/shortfall_capture.png", dpi=150, bbox_inches="tight")
 plt.show()
 """)
 
-md("""---
+md("""
+Reviewing the riskiest 10% of loans covers about three quarters of the
+shortfall, where a random 10% would cover about 10%, because the model
+concentrates the unfunded dollars at the top of its ranking. That is the practical use of the score: a short, ordered review list.
+""")
 
+# =====================================================================
+# 10. LIMITATIONS
+# =====================================================================
+md("""
+---
 ## 10. Limitations
 
 - **Censoring is handled, not eliminated.** Loans posted within 60 days of the
@@ -818,7 +1184,7 @@ md("""---
   end of the training period and scored once on the most recent 20% of settled
   loans. Walk-forward windows would show how stable the test score is.
 - **Trend and season.** Month of posting can stand in for a platform-wide trend
-  under a time split. The time-trend candidate in Section 7 tests this on the
+  under a time split. The time-trend candidate in section 7 tests this on the
   validation slice; a tree model cannot extrapolate a trend beyond the training
   period, so the trend column can only hold the latest level steady.
 - **Scores are not probabilities.** Balanced class weights move every score towards
@@ -829,19 +1195,19 @@ md("""---
   time to fund slowly, so the test target is biased towards short fundraising times.
   The regression and its baseline share that bias.
 - **Misplaced map points are dropped.** Regions far outside their country's spread
-  in the upstream MPI file (counted in Section 5) are left off the map; their MPI
+  in the upstream MPI file (counted in section 5) are left off the map; their MPI
   values are still used. Some region names in that file are also mis-encoded
-  upstream (Section 5).
+  upstream (section 5).
 - **MPI join coverage is low.** Section 5 prints the share of loans that match a
   region-level MPI score; most do not, most likely because `kiva_loans.csv`'s
   free-text `region` field (entered inconsistently by field partners) does not
   standardize against `kiva_mpi_region_locations.csv`'s `region` field well enough
   for an exact string join. Every MPI-dependent result in this notebook, the
-  Section 5 map and correlation, the `MPI` feature in the Section 7 model, and the
-  Section 9 priority table, describes only that small, non-random subset (skewed
+  section 5 map and correlation, the `MPI` feature in the section 7 model, and the
+  section 9 priority table, describes only that small, non-random subset (skewed
   towards regions with cleanly matching names). The priority table illustrates the
   method; it is not a region-targeting list for the rest of the loan volume.
-- **The MPI correlation is an ecological one.** The Section 5 correlation is
+- **The MPI correlation is an ecological one.** The section 5 correlation is
   computed across regions, between a region's MPI and its share of loans fully
   funded. A region-level association says nothing about whether any individual
   poorer borrower is more or less likely to be funded; assuming it does is the
@@ -855,16 +1221,20 @@ md("""---
 # =====================================================================
 # 11. RESULTS FILE
 # =====================================================================
-md("""---
-
+md("""
+---
 ## 11. Results file
 
-Every headline number above is written to `outputs/results.json`, with the package
-versions, the git commit of the code and the run time, so the README can be checked
-against it mechanically (`tests/test_readme_numbers.py`).
+Every headline number above is written to `outputs/results.json`, with the
+package versions, the git commit of the code and the run time, so the README can
+be checked against it mechanically (`tests/test_readme_numbers.py`).
+
+**Task 11.1:** Small helpers for the provenance record: a package's version, a
+git query, and the peak memory used by this run.
 """)
 
-code("""import json
+code("""
+import json
 import platform
 import subprocess
 from datetime import datetime, timezone
@@ -896,98 +1266,125 @@ def peak_memory_gb():
         return round(peak / 1e9, 1)
     except Exception:
         return None
+""")
 
+md("""
+**Task 11.2:** Record where the numbers came from: the run date, runtime, code
+version and library versions. Changes to the code since the recorded commit are
+flagged; the notebook, figures and results file are outputs of the run and are
+left out of that check.
+""")
 
-# Changes to the code since the recorded commit; the generated notebook, figures and
-# this file are outputs of the run and are left out of the check.
+code("""
 uncommitted = git("status", "--porcelain", "--", ".", ":(exclude)*.ipynb", ":(exclude)figs", ":(exclude)outputs")
-chosen = report["0"]
 
-results = {
-    "provenance": {
-        "run_date_utc": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
-        "runtime_minutes": round((time.time() - RUN_STARTED) / 60),
-        "peak_memory_gb": peak_memory_gb(),
-        "git_commit": git("rev-parse", "HEAD"),
-        "uncommitted_code_changes": None if uncommitted is None else bool(uncommitted),
-        "python": platform.python_version(),
-        "packages": {p: package_version(p) for p in (
-            "numpy", "pandas", "scikit-learn", "lightgbm", "shap", "matplotlib", "seaborn", "plotly", "kaleido")},
-    },
-    "data": {
-        "loans": len(df),
-        "snapshot_end": str(snapshot_end.date()),
-        "censor_days": CENSOR_DAYS,
-        "recent_loans_excluded": int((~settled).sum()),
-        "recent_loans_excluded_share": float((~settled).mean()),
-        "settled_loans": int(settled.sum()),
-        "settled_not_funded_share": float(1 - df.loc[settled, "fully_funded"].mean()),
-        "funded_rate_by_age_days": {str(k): float(v) for k, v in censoring["funded_rate"].items()},
-        "modeling_rows": len(model_df),
-        "mpi_matched_loans": int(df["MPI"].notna().sum()),
-        "mpi_coverage": float(coverage),
-        "mpi_located_regions": n_located,
-        "mpi_misplaced_coordinates": n_misplaced,
-    },
-    "split": {
-        "train_share": TRAIN_SHARE,
-        "fit_slice_end": str(val_cut.date()),
-        "train_end": str(split_date.date()),
-        "fit_loans": int(is_fit.sum()),
-        "validation_loans": int(is_val.sum()),
-        "train_loans": int(is_train.sum()),
-        "test_loans": int((~is_train).sum()),
-        "test_not_funded_loans": int((y_test == 0).sum()),
-        "not_funded_share": {"fit": float(1 - y[is_fit].mean()), "validation": float(1 - y[is_val].mean()),
-                             "test": float(1 - y_test.mean())},
-        "feature_columns": len(ALL_COLUMNS),
-    },
-    "classification": {
-        "candidates": {name: {"validation_pr_auc_at_risk": float(validation_pr_auc[name]),
-                              "test_pr_auc_at_risk": float(test_pr_auc[name]),
-                              "test_pr_auc_funded": float(test_pr_auc_majority[name])}
-                       for name in CANDIDATES},
-        "chosen_model": best_model_name,
-        "chosen_on": "validation PR-AUC, at-risk class",
-        "test_pr_auc_at_risk": float(pr_auc_minority),
-        "test_pr_auc_funded": float(pr_auc_majority),
-        "test_roc_auc": float(roc_auc),
-        "test_funded_share": float(y_test.mean()),
-        "at_risk_recall_at_0_5": float(chosen["recall"]),
-        "at_risk_precision_at_0_5": float(chosen["precision"]),
-        "top12_mean_abs_shap": {k: float(v) for k, v in mean_abs_shap.head(12).items()},
-    },
-    "regional_poverty": {
-        "regions_min_20_settled_loans": len(region_summary),
-        "settled_loans_in_regions": int(region_summary["n_loans"].sum()),
-        "settled_loans_in_regions_share": float(region_loan_share),
-        "pearson_mpi_vs_share_funded": float(mpi_corr),
-        "spearman_mpi_vs_share_funded": float(mpi_corr_rank),
-    },
-    "days_to_fund": {
-        "rows": len(X_reg),
-        "test_rows": len(yr_test),
-        "mean_days": float(funded_only["days_to_fund"].mean()),
-        "std_days": float(funded_only["days_to_fund"].std()),
-        "mae_model_days": float(reg_mae),
-        "mae_baseline_days": float(baseline_mae),
-        "baseline_train_median_days": baseline_days,
-        "r2_model": float(reg_r2),
-    },
-    "priority_regions": {
-        "regions": len(priority),
-        "top5": [{"country": r.country, "region": r.region, "n_test_loans": int(r.n_test_loans),
-                  "MPI": float(r.MPI), "mean_model_score": float(r.mean_model_score),
-                  "priority_index": float(r.priority_index)} for r in priority.head(5).itertuples()],
-    },
-    "shortfall": {
-        "test_total_usd": float(total_shortfall),
-        "flagged_loans": int(flagged.sum()),
-        "flagged_share": float(flagged.mean()),
-        "flagged_shortfall_usd": float(flagged_cover),
-        "flagged_shortfall_share": float(flagged_cover / total_shortfall),
-        "capture": capture.to_dict(orient="records"),
-    },
+results = {}
+results["provenance"] = {
+    "run_date_utc": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+    "runtime_minutes": round((time.time() - RUN_STARTED) / 60),
+    "peak_memory_gb": peak_memory_gb(),
+    "git_commit": git("rev-parse", "HEAD"),
+    "uncommitted_code_changes": None if uncommitted is None else bool(uncommitted),
+    "python": platform.python_version(),
+    "packages": {p: package_version(p) for p in (
+        "numpy", "pandas", "scikit-learn", "lightgbm", "shap", "matplotlib", "seaborn", "plotly", "kaleido")},
+}
+""")
+
+md("""
+**Task 11.3:** Record the data, censoring and split figures (sections 2, 5 and 6).
+""")
+
+code("""
+results["data"] = {
+    "loans": len(df),
+    "snapshot_end": str(snapshot_end.date()),
+    "censor_days": CENSOR_DAYS,
+    "recent_loans_excluded": int((~settled).sum()),
+    "recent_loans_excluded_share": float((~settled).mean()),
+    "settled_loans": int(settled.sum()),
+    "settled_not_funded_share": float(1 - df.loc[settled, "fully_funded"].mean()),
+    "funded_rate_by_age_days": {str(k): float(v) for k, v in censoring["funded_rate"].items()},
+    "modeling_rows": len(model_df),
+    "mpi_matched_loans": int(df["MPI"].notna().sum()),
+    "mpi_coverage": float(coverage),
+    "mpi_located_regions": n_located,
+    "mpi_misplaced_coordinates": n_misplaced,
+}
+results["split"] = {
+    "train_share": TRAIN_SHARE,
+    "fit_slice_end": str(val_cut.date()),
+    "train_end": str(split_date.date()),
+    "fit_loans": int(is_fit.sum()),
+    "validation_loans": int(is_val.sum()),
+    "train_loans": int(is_train.sum()),
+    "test_loans": int((~is_train).sum()),
+    "test_not_funded_loans": int((y_test == 0).sum()),
+    "not_funded_share": {"fit": float(1 - y[is_fit].mean()), "validation": float(1 - y[is_val].mean()),
+                         "test": float(1 - y_test.mean())},
+    "feature_columns": len(ALL_COLUMNS),
+}
+""")
+
+md("""
+**Task 11.4:** Record the model results (sections 5.1, 7 and 8).
+""")
+
+code("""
+chosen = report["0"]   # precision and recall for the not-funded class at the 0.5 cut-off
+results["classification"] = {
+    "candidates": {name: {"validation_pr_auc_at_risk": float(validation_pr_auc[name]),
+                          "test_pr_auc_at_risk": float(test_pr_auc[name]),
+                          "test_pr_auc_funded": float(test_pr_auc_majority[name])}
+                   for name in CANDIDATES},
+    "chosen_model": best_model_name,
+    "chosen_on": "validation PR-AUC, at-risk class",
+    "test_pr_auc_at_risk": float(pr_auc_minority),
+    "test_pr_auc_funded": float(pr_auc_majority),
+    "test_roc_auc": float(roc_auc),
+    "test_funded_share": float(y_test.mean()),
+    "at_risk_recall_at_0_5": float(chosen["recall"]),
+    "at_risk_precision_at_0_5": float(chosen["precision"]),
+    "top12_mean_abs_shap": {k: float(v) for k, v in mean_abs_shap.head(12).items()},
+}
+results["regional_poverty"] = {
+    "regions_min_20_settled_loans": len(region_summary),
+    "settled_loans_in_regions": int(region_summary["n_loans"].sum()),
+    "settled_loans_in_regions_share": float(region_loan_share),
+    "pearson_mpi_vs_share_funded": float(mpi_corr),
+    "spearman_mpi_vs_share_funded": float(mpi_corr_rank),
+}
+results["days_to_fund"] = {
+    "rows": len(X_reg),
+    "test_rows": len(yr_test),
+    "mean_days": float(funded_only["days_to_fund"].mean()),
+    "std_days": float(funded_only["days_to_fund"].std()),
+    "mae_model_days": float(reg_mae),
+    "mae_baseline_days": float(baseline_mae),
+    "baseline_train_median_days": baseline_days,
+    "r2_model": float(reg_r2),
+}
+""")
+
+md("""
+**Task 11.5:** Record the synthesis and business impact (section 9), and write
+the file.
+""")
+
+code("""
+results["priority_regions"] = {
+    "regions": len(priority),
+    "top5": [{"country": r.country, "region": r.region, "n_test_loans": int(r.n_test_loans),
+              "MPI": float(r.MPI), "mean_model_score": float(r.mean_model_score),
+              "priority_index": float(r.priority_index)} for r in priority.head(5).itertuples()],
+}
+results["shortfall"] = {
+    "test_total_usd": float(total_shortfall),
+    "flagged_loans": int(flagged.sum()),
+    "flagged_share": float(flagged.mean()),
+    "flagged_shortfall_usd": float(flagged_cover),
+    "flagged_shortfall_share": float(flagged_cover / total_shortfall),
+    "capture": capture.to_dict(orient="records"),
 }
 
 Path("outputs").mkdir(exist_ok=True)
@@ -997,7 +1394,6 @@ print("Wrote outputs/results.json")
 print(json.dumps(results["provenance"], indent=2))
 """)
 
-# =====================================================================
 for i, cell in enumerate(cells):
     cell["id"] = f"cell-{i:02d}"  # stable ids (required by nbformat 4.5)
 

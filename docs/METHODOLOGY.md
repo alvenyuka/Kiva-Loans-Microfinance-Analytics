@@ -42,7 +42,10 @@ Kiva-Loans-Microfinance-Analytics/
 ```
 
 The notebook is generated, so `build_notebook.py` is the file to edit, never the
-`.ipynb`. The logic the conclusions rest on lives in `src/features.py` and
+`.ipynb`. It is written to be followed and recreated: three parts (prepare the
+data, build the models, communicate the results), each section broken into small
+numbered tasks with one short code cell each, a baseline before every model, and
+"check your work" assertions that stop the run at the step that went wrong. The logic the conclusions rest on lives in `src/features.py` and
 `src/impact.py`, so the notebook and the test suite exercise the same code rather
 than two copies that drift apart.
 
