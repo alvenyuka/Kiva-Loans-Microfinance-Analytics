@@ -4,9 +4,10 @@ This script is the source of the notebook: edit it, regenerate, and execute the
 notebook. Never edit the .ipynb by hand.
 
 The notebook is written to be followed and recreated step by step. It is
-organised in three parts (prepare the data, build the models, communicate the
-results); each part is broken into small numbered tasks with one short code
-cell each, and "check your work" assertions stop the run if a step goes wrong.
+organised around the project's two questions (which loans are at risk, and does
+that risk fall on the poorest regions), with each section broken into small
+numbered steps of one short code cell each, and "Check" assertions stop the run
+if a step goes wrong.
 The section numbers 1 to 11 are referenced from docs/METHODOLOGY.md, so keep
 them stable."""
 import json
@@ -35,22 +36,29 @@ This notebook analyses 671,205 real microloans from Kiva's public dataset
 request on its website and individual lenders fund it in small amounts; a loan
 that does not reach its target in time is not fully funded.
 
-**How this notebook is organised.** It follows the three stages of a
-model-building project, and every section is broken into small numbered tasks:
+**How this notebook is organised.** This is an analysis driven by two
+business questions, so it is organised around them rather than around a single
+model:
 
-- **Part 1, prepare the data** (sections 1 to 6): load the loans, check their
-  quality, explore them, mine the loan descriptions, join a poverty index by
-  region, and build leakage-free features with a time-based split.
-- **Part 2, build the models** (sections 7 and 8): a funding-risk classifier,
-  compared against a baseline and explained with SHAP, and a days-to-fund
-  regression.
-- **Part 3, communicate the results** (sections 9 to 11): which regions to
-  prioritise, how much of the funding shortfall the model points at, the
-  limitations, and a results file every README number is checked against.
+- **Part 1, what the data can support** (sections 1 to 6): load and check the
+  loans, explore them, mine the loan descriptions, and join a poverty index by
+  region. Two limits surface here that shape every later answer: recent loans
+  were still fundraising when the data was taken, and only a small share of
+  loans can be matched to a poverty score. Section 5.1 gives the first,
+  descriptive answer to question 2, and section 6 builds leakage-free features
+  with a time-based split.
+- **Part 2, question 1: which loans are at risk?** (sections 7 and 8): a
+  funding-risk model chosen against a baseline on a validation period, scored
+  once on later loans and explained with SHAP; then how long funded loans take.
+- **Part 3, question 2 and what to do about it** (section 9): where poverty and
+  funding risk coincide, and how much of the funding shortfall a review list
+  built from the model would cover.
+- **Part 4, limits and record** (sections 10 and 11): what the results cannot
+  show, and a results file every README number is checked against.
 
-Each task is one short code cell. Cells marked **Check your work** contain
-assertions, so the notebook stops at the step that went wrong instead of
-carrying a wrong number forward. All findings are correlational, not causal:
+Each step is one short code cell with an explanation of what it does and what
+its output shows. Cells containing **Check** assertions stop the notebook at the
+step that went wrong instead of carrying a wrong number forward. All findings are correlational, not causal:
 this is a single-snapshot dataset.
 """)
 
@@ -59,11 +67,11 @@ this is a single-snapshot dataset.
 # =====================================================================
 md("""
 ---
-# Part 1: Prepare the data
+# Part 1: What the data can support
 
 ## 1. Setup
 
-**Task 1.1:** Import the libraries and fix the random seed, so every run gives
+**Step 1.1:** Import the libraries and fix the random seed, so every run gives
 the same numbers.
 """)
 
@@ -87,7 +95,7 @@ sns.set_theme(style="whitegrid", context="notebook")
 """)
 
 md("""
-**Task 1.2:** Import the project's own functions from `src/features.py`. The
+**Step 1.2:** Import the project's own functions from `src/features.py`. The
 feature engineering and the leakage guard live there rather than in this
 notebook so that `tests/` can check them; the notebook and the tests therefore
 run the same code.
@@ -106,7 +114,7 @@ from features import (
 """)
 
 md("""
-**Task 1.3:** Point the notebook at the data. The Kiva CSVs (about 200 MB) are
+**Step 1.3:** Point the notebook at the data. The Kiva CSVs (about 200 MB) are
 not stored in the repository; put them in `./data` or set `KIVA_DATA_DIR`.
 """)
 
@@ -132,7 +140,7 @@ md("""
 ---
 ## 2. Data loading
 
-**Task 2.1:** Load `kiva_loans.csv`. Text columns with few distinct values
+**Step 2.1:** Load `kiva_loans.csv`. Text columns with few distinct values
 (sector, country and so on) are read as `category`, which stores each distinct
 value once and keeps 671k rows small in memory. The four timestamps are parsed
 as dates.
@@ -166,14 +174,14 @@ df.head()
 """)
 
 code("""
-# Check your work: every loan in the file was read, once
+# Check: every loan in the file was read, once
 assert len(df) == 671_205
 """)
 
 md("""
 ### 2.1 Data-quality checks
 
-**Task 2.2:** Which columns have missing values?
+**Step 2.2:** Which columns have missing values?
 """)
 
 code("""
@@ -185,7 +193,7 @@ md("""
 expected and is what the model predicts. `region` is missing for 56,800 loans,
 which limits the poverty join in section 5.
 
-**Task 2.3:** Look for impossible values: duplicate loans, non-positive amounts,
+**Step 2.3:** Look for impossible values: duplicate loans, non-positive amounts,
 and loans funded above what they asked for.
 """)
 
@@ -196,7 +204,7 @@ print("funded_amount > loan_amount (should be 0 or near-0):", (df["funded_amount
 """)
 
 code("""
-# Check your work: no duplicate loans and no zero or negative loan amounts
+# Check: no duplicate loans and no zero or negative loan amounts
 assert not df["id"].duplicated().any()
 assert (df["loan_amount"] > 0).all()
 """)
@@ -213,7 +221,7 @@ md("""
 ---
 ## 3. Exploratory data analysis
 
-**Task 3.1:** How large are the loans? Plot the distribution of `loan_amount`,
+**Step 3.1:** How large are the loans? Plot the distribution of `loan_amount`,
 once on the raw scale (cut at the 99th percentile so a few very large loans do
 not squash the chart) and once on a log scale.
 """)
@@ -243,7 +251,7 @@ close to symmetric.
 
 ### 3.1 Sectors and activities
 
-**Task 3.2:** Which sectors receive the most loans?
+**Step 3.2:** Which sectors receive the most loans?
 """)
 
 code("""
@@ -261,7 +269,7 @@ top_sectors
 md("""
 ### 3.2 Countries and regions
 
-**Task 3.3:** Which countries receive the most loans?
+**Step 3.3:** Which countries receive the most loans?
 """)
 
 code("""
@@ -282,7 +290,7 @@ md("""
 `borrower_genders` is a comma-separated list with one entry per borrower, since
 many Kiva loans are group loans (for example "female, female, male").
 
-**Task 3.4:** Parse it into counts of male and female borrowers per loan, and
+**Step 3.4:** Parse it into counts of male and female borrowers per loan, and
 the female share. `add_borrower_features` (in `src/features.py`, with its edge
 cases tested in `tests/test_features.py`) does this. A loan whose genders cannot
 be parsed gets `pct_female = NaN`, not 0: NaN means "we could not tell", while 0
@@ -298,7 +306,7 @@ df[["n_male", "n_female", "n_borrowers", "pct_female"]].describe()
 """)
 
 code("""
-# Check your work: the female share is a share, and it is missing exactly where nobody was parsed
+# Check: the female share is a share, and it is missing exactly where nobody was parsed
 assert df["pct_female"].dropna().between(0, 1).all()
 assert (df["pct_female"].isna() == (df["n_borrowers"] == 0)).all()
 """)
@@ -310,7 +318,7 @@ female share is 100%.
 
 ### 3.4 Repayment intervals and loan volume over time
 
-**Task 3.5:** How are loans repaid, and how did volume change over time?
+**Step 3.5:** How are loans repaid, and how did volume change over time?
 """)
 
 code("""
@@ -347,7 +355,7 @@ This section is exploratory only: the vocabulary fitted here, on every loan, is
 not used by the model. The model's text features are refitted on the training
 period alone in section 6.2.
 
-**Task 4.1:** Fill missing descriptions with an empty string and record each
+**Step 4.1:** Fill missing descriptions with an empty string and record each
 description's length (a model input).
 """)
 
@@ -357,7 +365,7 @@ df["use_len"] = df["use"].str.len().astype("int32")
 """)
 
 md("""
-**Task 4.2:** Fit a 30-term TF-IDF vocabulary (single words and two-word
+**Step 4.2:** Fit a 30-term TF-IDF vocabulary (single words and two-word
 phrases, English stop words removed, each term in at least 50 descriptions) and
 count how many loans use each term.
 """)
@@ -382,7 +390,7 @@ loans_per_term.sort_values(ascending=False).head(10)
 md("""
 ### 4.1 Top terms by sector
 
-**Task 4.3:** Fit a small vocabulary within each of the five largest sectors.
+**Step 4.3:** Fit a small vocabulary within each of the five largest sectors.
 """)
 
 code("""
@@ -423,7 +431,7 @@ UTF-8, but it stores "Maranh°o" and "Rond°nia" where the Brazilian states are
 Maranhão and Rondônia. The names print as stored rather than being repaired by
 hand.
 
-**Task 5.1:** Load the lookup table, keeping one row per country and region.
+**Step 5.1:** Load the lookup table, keeping one row per country and region.
 """)
 
 code("""
@@ -433,7 +441,7 @@ print(f"MPI lookup: {len(mpi):,} regions, {mpi['MPI'].notna().sum():,} with an M
 """)
 
 md("""
-**Task 5.2:** Check the coordinates before drawing a map. A region whose point
+**Step 5.2:** Check the coordinates before drawing a map. A region whose point
 lies far from the rest of its country (more than five robust standard
 deviations of that country's spread, and at least 10 degrees) is mis-keyed in
 the upstream file. Its map point is dropped; its MPI value, which is what the
@@ -456,7 +464,7 @@ md("""
 Herat in Afghanistan placed in South-East Asia, or Oruro in Bolivia placed in
 the Himalayas, are clearly wrong, so dropping these points loses nothing real.
 
-**Task 5.3:** Join the MPI onto the loans and report how many matched.
+**Step 5.3:** Join the MPI onto the loans and report how many matched.
 `validate="many_to_one"` makes pandas raise an error if a region appeared twice
 in the lookup, which would silently duplicate loans.
 """)
@@ -471,7 +479,7 @@ print(f"Loans matched: {df['MPI'].notna().sum():,} / {len(df):,}")
 """)
 
 code("""
-# Check your work: the join added columns, not loans
+# Check: the join added columns, not loans
 assert len(df) == n_before
 """)
 
@@ -480,9 +488,9 @@ Only 7.6% of loans match. The free-text `region` field in the loans file does
 not line up with the lookup's region names well enough for an exact join, so
 every MPI result below describes a small, non-random subset (see section 10).
 
-### 5.1 Funding success vs. poverty depth, by region
+### 5.1 Question 2, first look: funding success against poverty depth, by region
 
-**Task 5.4:** Define the target and the loans whose outcome is known. A loan is
+**Step 5.4:** Define the target and the loans whose outcome is known. A loan is
 fully funded when it raised at least what it asked for. Loans posted in the
 last 60 days before the data snapshot may still have been fundraising, so their
 outcome is not yet known; section 6.1 measures this.
@@ -498,7 +506,7 @@ print(f"Settled loans: {settled.sum():,} of {len(df):,}")
 """)
 
 md("""
-**Task 5.5:** Summarise each region with a known MPI and at least 20 settled
+**Step 5.5:** Summarise each region with a known MPI and at least 20 settled
 loans: number of loans, total amount, share fully funded, and MPI.
 """)
 
@@ -521,7 +529,7 @@ region_summary.sort_values("MPI", ascending=False).head(10)
 """)
 
 md("""
-**Task 5.6:** Measure the association between poverty and funding success
+**Step 5.6:** Measure the association between poverty and funding success
 across these regions, with both the Pearson correlation and the Spearman rank
 correlation (which is not pulled around by a few extreme regions).
 """)
@@ -547,7 +555,7 @@ show that poorer borrowers are favoured.
 
 ### 5.2 Map: loan volume and funding success against poverty depth
 
-**Task 5.7:** Map each region, sized by loan volume and coloured by funding
+**Step 5.7:** Map each region, sized by loan volume and coloured by funding
 success.
 """)
 
@@ -594,7 +602,7 @@ reading the answer. A leaked column does not break a model; it improves the
 score, so nothing downstream would flag it. That is why the guard below is run,
 not just described.
 
-**Task 6.1:** Add three features that are known at posting time: the month and
+**Step 6.1:** Add three features that are known at posting time: the month and
 weekday of posting, and the number of months since the first loan in the data
 (a time trend). The trend is offered to the model only as a separate candidate
 in section 7, so that the month of posting cannot quietly stand in for a
@@ -609,7 +617,7 @@ df[TREND_COLUMN] = ((df["posted_time"] - df["posted_time"].min()).dt.days / 30.4
 """)
 
 md("""
-**Task 6.2:** Measure right-censoring. A loan with no `funded_time` when the
+**Step 6.2:** Measure right-censoring. A loan with no `funded_time` when the
 snapshot was taken may simply still have been fundraising. Tabulate the funded
 rate by how many days before the snapshot the loan was posted.
 """)
@@ -628,9 +636,9 @@ md("""
 Loans posted in the last three weeks show funded rates between 15% and 35%,
 against more than 90% for loans older than 60 days. Counting them as "not funded" would
 fill the at-risk class with loans that were still raising money, so they are
-left out (the `settled` mask from Task 5.4).
+left out (the `settled` mask from Step 5.4).
 
-**Task 6.3:** Build the modelling table from settled loans and posting-time
+**Step 6.3:** Build the modelling table from settled loans and posting-time
 columns only, then run the leakage guard.
 """)
 
@@ -660,7 +668,7 @@ it has not yet seen:
 - **Test period:** the most recent 20%, scored once by the chosen model after it
   is refitted on the whole training period.
 
-**Task 6.4:** Find the two cut-off dates and label every loan.
+**Step 6.4:** Find the two cut-off dates and label every loan.
 """)
 
 code("""
@@ -677,13 +685,13 @@ print(f"Test period:      posted after {split_date.date()} ({(~is_train).sum():,
 """)
 
 code("""
-# Check your work: every loan is in exactly one slice, and the slices follow each other in time
+# Check: every loan is in exactly one slice, and the slices follow each other in time
 assert (is_fit.astype(int) + is_val.astype(int) + (~is_train).astype(int) == 1).all()
 assert posted[is_fit].max() <= posted[is_val].min() and posted[is_val].max() <= posted[~is_train].min()
 """)
 
 md("""
-**Task 6.5:** Write the function that turns `model_df` into a numeric feature
+**Step 6.5:** Write the function that turns `model_df` into a numeric feature
 matrix. Anything learned from data (the text vocabulary, the medians used to
 fill missing values) is learned from `fit_rows` only, so no stage sees text or
 medians from the loans it is scored on. A missing-poverty flag (`MPI_missing`)
@@ -711,7 +719,7 @@ def build_matrix(fit_rows):
 """)
 
 md("""
-**Task 6.6:** Build two matrices: one learned from the fit slice, for choosing
+**Step 6.6:** Build two matrices: one learned from the fit slice, for choosing
 the model, and one learned from the whole training period, for the final model.
 Then run the leakage guard again: one-hot encoding creates new column names, and
 a suffixed column such as `funded_amount_bucket` would get past a check that ran
@@ -747,7 +755,7 @@ class is the minority. That shapes the choice of metric in section 7.
 # =====================================================================
 md("""
 ---
-# Part 2: Build the models
+# Part 2: Question 1, which loans are at risk?
 
 ## 7. Funding-risk model
 
@@ -770,7 +778,7 @@ about 95%). Both are reported:
   labels and the scores so that "not funded" is the class being found
 - **PR-AUC (funded, majority class):** `average_precision_score(y_test, y_proba)`
 
-**Task 7.1:** Write the headline metric, and set the baseline: a score that
+**Step 7.1:** Write the headline metric, and set the baseline: a score that
 ranks every loan the same.
 """)
 
@@ -791,7 +799,7 @@ print(f"Baseline validation PR-AUC (at-risk): {baseline_val:.4f}  (= the share n
 md("""
 Any model below has to beat that number to be worth anything.
 
-**Task 7.2:** Define four candidate models: logistic regression, a random
+**Step 7.2:** Define four candidate models: logistic regression, a random
 forest, LightGBM (gradient-boosted trees), and the same LightGBM given the time
 trend. All four use balanced class weights, so the rare unfunded loans count as
 much as the funded ones during fitting. Their outputs therefore rank loans by
@@ -824,7 +832,7 @@ CANDIDATES = {
 """)
 
 md("""
-**Task 7.3:** Choose the model on the validation slice only. Fit each candidate
+**Step 7.3:** Choose the model on the validation slice only. Fit each candidate
 on the fit slice, score the validation slice, and keep the highest at-risk
 PR-AUC. The test period is not touched.
 """)
@@ -843,12 +851,12 @@ print(f"Chosen on the validation slice: {best_model_name}")
 """)
 
 code("""
-# Check your work: every candidate beats the constant-score baseline on validation
+# Check: every candidate beats the constant-score baseline on validation
 assert min(validation_pr_auc.values()) > baseline_val
 """)
 
 md("""
-**Task 7.4:** Refit every candidate on the whole training period and score the
+**Step 7.4:** Refit every candidate on the whole training period and score the
 test period once. The choice above is already fixed; the other rows are shown
 for reference and play no part in it.
 """)
@@ -883,7 +891,7 @@ kept, and both numbers are reported.
 
 ### 7.1 Chosen model: full evaluation on the test period
 
-**Task 7.5:** Score the chosen model on the test period, against both floors.
+**Step 7.5:** Score the chosen model on the test period, against both floors.
 """)
 
 code("""
@@ -903,7 +911,7 @@ The headline PR-AUC is about eight times its floor of 0.046. The funded-class
 number looks far better but barely clears its own floor of 0.954, which is why
 it is not the headline.
 
-**Task 7.6:** Look at precision and recall at the default cut-off of 0.5.
+**Step 7.6:** Look at precision and recall at the default cut-off of 0.5.
 """)
 
 code("""
@@ -924,7 +932,7 @@ caught, at the cost of reviewing many that would have been funded anyway.
 > the size of those contributions over many loans ranks the features by how much
 > they move the model.
 
-**Task 7.7:** Compute SHAP values for 1,000 test loans.
+**Step 7.7:** Compute SHAP values for 1,000 test loans.
 """)
 
 code("""
@@ -957,7 +965,7 @@ print(mean_abs_shap.head(12).to_string(float_format=lambda v: f"{v:.4f}"))
 """)
 
 md("""
-**Task 7.8:** Plot the ranking.
+**Step 7.8:** Plot the ranking.
 """)
 
 code("""
@@ -981,7 +989,7 @@ to full funding from the same posting-time features. There is no separate
 leakage question here: the population is already restricted to funded loans,
 and the target is a time gap, not the funding outcome itself.
 
-**Task 8.1:** Build the regression table: settled, funded loans, with the text
+**Step 8.1:** Build the regression table: settled, funded loans, with the text
 vocabulary and medians learned from the training period.
 """)
 
@@ -1007,7 +1015,7 @@ print(funded_only['days_to_fund'].describe())
 """)
 
 md("""
-**Task 8.2:** Set the baseline first: give every test loan the median
+**Step 8.2:** Set the baseline first: give every test loan the median
 days-to-fund of the training period, and measure the mean absolute error (MAE),
 the average number of days the prediction is off by.
 """)
@@ -1025,7 +1033,7 @@ print(f"MAE, naive baseline (train median {baseline_days:.1f} days): {baseline_m
 """)
 
 md("""
-**Task 8.3:** Fit a random forest and compare it with the baseline.
+**Step 8.3:** Fit a random forest and compare it with the baseline.
 """)
 
 code("""
@@ -1043,7 +1051,7 @@ print(f"R-squared, random forest: {reg_r2:.3f}")
 """)
 
 code("""
-# Check your work: the model beats the naive baseline
+# Check: the model beats the naive baseline
 assert reg_mae < baseline_mae
 """)
 
@@ -1058,7 +1066,7 @@ loan funds is not in the information available when it is posted.
 # =====================================================================
 md("""
 ---
-# Part 3: Communicate the results
+# Part 3: Question 2, and what Kiva could do about it
 
 ## 9. Synthesis: where should Kiva focus promotion?
 
@@ -1071,7 +1079,7 @@ and the **relative priority index** is the product of the two percentile ranks:
 1 means the poorest and riskiest region in the table. It orders regions; its
 scale carries no other meaning.
 
-**Task 9.1:** Average the test-period scores by region, for regions with a known
+**Step 9.1:** Average the test-period scores by region, for regions with a known
 MPI and at least 10 test loans.
 """)
 
@@ -1094,7 +1102,7 @@ print(f"Regions in priority table (at least 10 test loans with a known MPI): {le
 """)
 
 md("""
-**Task 9.2:** Rank the regions and compute the priority index.
+**Step 9.2:** Rank the regions and compute the priority index.
 """)
 
 code("""
@@ -1114,7 +1122,7 @@ in the test period (for example to feature them or add matching funds), what
 share of the total shortfall would those reviews cover? `src/impact.py` does the
 arithmetic and is covered by the tests.
 
-**Task 9.3:** Compute the shortfall covered when the riskiest 5%, 10%, 20% and
+**Step 9.3:** Compute the shortfall covered when the riskiest 5%, 10%, 20% and
 30% of test loans are reviewed, and by the loans flagged at the 0.5 cut-off.
 """)
 
@@ -1138,7 +1146,7 @@ print(capture.to_string(index=False, formatters={
 """)
 
 md("""
-**Task 9.4:** Plot the shortfall covered against the share of loans reviewed,
+**Step 9.4:** Plot the shortfall covered against the share of loans reviewed,
 next to what a random review would cover.
 """)
 
@@ -1174,6 +1182,8 @@ concentrates the unfunded dollars at the top of its ranking. That is the practic
 # =====================================================================
 md("""
 ---
+# Part 4: Limits and record
+
 ## 10. Limitations
 
 - **Censoring is handled, not eliminated.** Loans posted within 60 days of the
@@ -1229,7 +1239,7 @@ Every headline number above is written to `outputs/results.json`, with the
 package versions, the git commit of the code and the run time, so the README can
 be checked against it mechanically (`tests/test_readme_numbers.py`).
 
-**Task 11.1:** Small helpers for the provenance record: a package's version, a
+**Step 11.1:** Small helpers for the provenance record: a package's version, a
 git query, and the peak memory used by this run.
 """)
 
@@ -1269,7 +1279,7 @@ def peak_memory_gb():
 """)
 
 md("""
-**Task 11.2:** Record where the numbers came from: the run date, runtime, code
+**Step 11.2:** Record where the numbers came from: the run date, runtime, code
 version and library versions. Changes to the code since the recorded commit are
 flagged; the notebook, figures and results file are outputs of the run and are
 left out of that check.
@@ -1292,7 +1302,7 @@ results["provenance"] = {
 """)
 
 md("""
-**Task 11.3:** Record the data, censoring and split figures (sections 2, 5 and 6).
+**Step 11.3:** Record the data, censoring and split figures (sections 2, 5 and 6).
 """)
 
 code("""
@@ -1327,7 +1337,7 @@ results["split"] = {
 """)
 
 md("""
-**Task 11.4:** Record the model results (sections 5.1, 7 and 8).
+**Step 11.4:** Record the model results (sections 5.1, 7 and 8).
 """)
 
 code("""
@@ -1367,7 +1377,7 @@ results["days_to_fund"] = {
 """)
 
 md("""
-**Task 11.5:** Record the synthesis and business impact (section 9), and write
+**Step 11.5:** Record the synthesis and business impact (section 9), and write
 the file.
 """)
 
