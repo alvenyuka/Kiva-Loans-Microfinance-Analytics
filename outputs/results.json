@@ -1,9 +1,9 @@
 {
   "provenance": {
-    "run_date_utc": "2026-10-02",
-    "runtime_minutes": 19,
-    "peak_memory_gb": 4.8,
-    "git_commit": "2ebb620aa640c1eb9132199fbbcec91928b653a7",
+    "run_date_utc": "2026-10-04",
+    "runtime_minutes": 26,
+    "peak_memory_gb": 4.1,
+    "git_commit": "e6faf45e267fea568b387b03456ad0aa4d717f82",
     "uncommitted_code_changes": false,
     "python": "3.13.9",
     "packages": {
@@ -119,7 +119,7 @@
     "mae_model_days": 7.043078531504381,
     "mae_baseline_days": 8.075832180431068,
     "baseline_train_median_days": 10.240393518518518,
-    "r2_model": 0.24752168883691406
+    "r2_model": 0.24752168883691394
   },
   "priority_regions": {
     "regions": 57,

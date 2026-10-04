@@ -170,7 +170,7 @@ python build_notebook.py
 jupyter nbconvert --to notebook --execute Kiva_Loans_Microfinance_Analytics.ipynb --output Kiva_Loans_Microfinance_Analytics.ipynb --ExecutePreprocessor.timeout=3600
 ```
 
-The last recorded run took 19 minutes and peaked at 4.8 GB of memory.
+The last recorded run took 26 minutes and peaked at 4.1 GB of memory.
 
 ## Documentation
 

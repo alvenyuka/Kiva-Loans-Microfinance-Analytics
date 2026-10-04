@@ -281,7 +281,7 @@ jupyter nbconvert --to notebook --execute Kiva_Loans_Microfinance_Analytics.ipyn
 ```
 
 The tests take seconds and need nothing. The last recorded run of the notebook
-took 19 minutes end to end and peaked at 4.8 GB of memory (both written to
+took 26 minutes end to end and peaked at 4.1 GB of memory (both written to
 `outputs/results.json`), most of it the 671,205-row loan table, the two encoded
 model matrices and the scaled copy the logistic regression needs.
 
