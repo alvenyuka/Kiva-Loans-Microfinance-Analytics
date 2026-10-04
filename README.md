@@ -150,7 +150,7 @@ list.
 ## Repository structure
 
 ```
-Kiva_Loans_Microfinance_Analytics.ipynb   the analysis, executed end to end
+Kiva_Loans_Microfinance_Analytics.ipynb   the analysis, organised around the two questions, executed end to end
 build_notebook.py                         generates the notebook (edit this, not the .ipynb)
 src/features.py                           leakage guard, funding target, gender parsing
 src/impact.py                             funding-shortfall capture
@@ -174,7 +174,11 @@ The last recorded run took 26 minutes and peaked at 4.1 GB of memory.
 
 ## Documentation
 
-The full method, every result and the tests are described in [`docs/METHODOLOGY.md`](docs/METHODOLOGY.md).
+The analysis is in [`Kiva_Loans_Microfinance_Analytics.ipynb`](Kiva_Loans_Microfinance_Analytics.ipynb), organised
+around the project's two questions: what the data can support, which loans are at risk, and whether that risk falls
+on the poorest regions and what a platform could do about it, followed by the limitations and the results record.
+Every model is compared with a baseline, and checks stop the run at any step that goes wrong. The full method, every
+result and the tests are described in [`docs/METHODOLOGY.md`](docs/METHODOLOGY.md).
 
 ## License
 
