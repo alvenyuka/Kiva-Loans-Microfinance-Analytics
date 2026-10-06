@@ -553,9 +553,90 @@ share of settled loans printed above, and the correlation is ecological,
 measured across regions rather than borrowers (see section 10), so it does not
 show that poorer borrowers are favoured.
 
+That answer rests on 7.5% of settled loans, so it is worth testing on more data.
+The exact join fails mostly because the two files describe places at different
+levels: a loan's `region` is usually a town ("Lahore", "Kisii", "Palo, Leyte"),
+while the poverty index is published by province ("Punjab", "Nyanza"). Cleaning
+the spelling cannot fix that.
+
+**Step 5.7:** Kiva publishes its own link from loan regions to poverty-index
+regions, in `loan_themes_by_region.csv` (column `mpi_region`). Use it to give
+each loan the poverty score of its province. Where Kiva's field partners link one
+loan region to more than one province, the most common link is used.
+""")
+
+code("""
+themes = pd.read_csv(DATA_DIR / "loan_themes_by_region.csv", usecols=["country", "region", "mpi_region"])
+link = (themes.dropna(subset=["mpi_region"])
+        .groupby(["country", "region"])["mpi_region"]
+        .agg(lambda s: s.mode().iloc[0])           # the most common province for each loan region
+        .reset_index())
+mpi_by_location = (pd.read_csv(DATA_DIR / "kiva_mpi_region_locations.csv")
+                   .dropna(subset=["MPI", "LocationName"])
+                   .drop_duplicates("LocationName")
+                   .set_index("LocationName")["MPI"])
+link["MPI_linked"] = link["mpi_region"].map(mpi_by_location)   # "Punjab, Pakistan" -> its MPI
+
+n_before = len(df)
+df = df.merge(link[["country", "region", "mpi_region", "MPI_linked"]], on=["country", "region"],
+              how="left", validate="many_to_one")
+assert len(df) == n_before
+linked_coverage = df["MPI_linked"].notna().mean()
+print(f"loans with a poverty score: exact join {coverage:.1%}, through Kiva's link {linked_coverage:.1%}")
+""")
+
+md("""
+Coverage rises from about one loan in thirteen to about seven in ten. The link is
+approximate: Kiva assigned it by nearest point, and a few loan regions land in a
+neighbouring province (Battambang, in Cambodia, is linked to Banteay Mean Chey).
+The model in section 7 keeps the exact-join score; this wider link is used to
+re-test question 2 and, in section 7.3, as a challenger input.
+
+**Step 5.8:** Re-test question 2 by province, with at least 20 settled loans each.
+""")
+
+code("""
+province_summary = (
+    df[settled].dropna(subset=["MPI_linked"])
+    .groupby(["country", "mpi_region"], observed=True)
+    .agg(n_loans=("id", "count"), pct_fully_funded=("fully_funded", "mean"), MPI=("MPI_linked", "first"))
+    .reset_index()
+)
+province_summary = province_summary[province_summary["n_loans"] >= 20]
+linked_corr = province_summary["MPI"].corr(province_summary["pct_fully_funded"])
+linked_corr_rank = province_summary["MPI"].corr(province_summary["pct_fully_funded"], method="spearman")
+linked_share = province_summary["n_loans"].sum() / settled.sum()
+print(f"provinces: {len(province_summary)} in {province_summary['country'].nunique()} countries, "
+      f"{linked_share:.1%} of settled loans")
+print(f"correlation between poverty and share fully funded: Pearson {linked_corr:.3f}, Spearman {linked_corr_rank:.3f}")
+""")
+
+md("""
+**Step 5.9:** A correlation summarises a straight line. Look at the shape instead:
+split settled loans into five equal groups by the poverty score of their province,
+from least to most poor, and compare funding rates.
+""")
+
+code("""
+poverty_fifth = pd.qcut(df.loc[settled, "MPI_linked"], 5)
+funded_by_fifth = df[settled].groupby(poverty_fifth, observed=True)["fully_funded"].agg(
+    share_fully_funded="mean", loans="size")
+funded_by_fifth
+""")
+
+md("""
+**The wider answer to question 2.** On about 240 provinces holding about 71% of
+settled loans, the straight-line relationship between poverty and funding is weak
+(correlations of about 0.1). The shape is not a line: loans from the least poor
+fifth and the poorest fifth are both funded less often (about 92% and 93%) than
+loans from the middle three fifths (about 96% to 97%). So funding risk does not
+fall hardest on the poorest regions alone; it is somewhat higher at both ends.
+This is still measured by province, not by borrower, so the caveats in section 10
+apply, but it rests on most of the data rather than a small, skewed slice.
+
 ### 5.2 Map: loan volume and funding success against poverty depth
 
-**Step 5.7:** Map each region, sized by loan volume and coloured by funding
+**Step 5.10:** Map each region, sized by loan volume and coloured by funding
 success.
 """)
 
@@ -977,6 +1058,75 @@ plt.savefig("figs/shap_summary.png", dpi=150, bbox_inches="tight")
 plt.show()
 """)
 
+md("""
+### 7.3 Two follow-up tests
+
+The published score (0.374) comes from one test window. Two questions follow.
+
+**Step 7.9: Is the score stable over time?** Walk forward through the settled
+loans: train on everything posted before a cut-off, score the next tenth of loans,
+move the cut-off on, and repeat four times. The model specification is the one
+chosen on the validation slice, and every step learns its text vocabulary and
+medians from its own training loans only.
+""")
+
+code("""
+cuts = posted.quantile([0.6, 0.7, 0.8, 0.9, 1.0])
+make_model, with_trend = CANDIDATES[best_model_name]
+wf_rows = []
+for start, end in zip(cuts.iloc[:-1], cuts.iloc[1:]):
+    train_rows = posted <= start
+    test_rows = (posted > start) & (posted <= end)
+    X_wf, _, _ = build_matrix(train_rows)                    # vocabulary and medians from train_rows only
+    cols = model_columns(X_wf, with_trend)
+    m = make_model().fit(X_wf.loc[train_rows, cols], y[train_rows])
+    scores = m.predict_proba(X_wf.loc[test_rows, cols])[:, 1]
+    floor = 1 - y[test_rows].mean()                          # PR-AUC of a model that ranks at random
+    wf_rows.append({"test_window": f"{start.date()} to {end.date()}", "train_loans": int(train_rows.sum()),
+                    "test_loans": int(test_rows.sum()), "not_funded_share": floor,
+                    "pr_auc_at_risk": at_risk_pr_auc(y[test_rows], scores)})
+del X_wf, m
+walk_forward = pd.DataFrame(wf_rows)
+walk_forward["lift_over_random"] = walk_forward["pr_auc_at_risk"] / walk_forward["not_funded_share"]
+walk_forward.round(3)
+""")
+
+md("""
+WALK_FORWARD_TEXT
+
+**Step 7.10: Does the wider poverty score help the model?** Section 5 linked about
+71% of loans to a province poverty score, against 7.6% for the exact join the
+model uses. Swap the wider score in, refit the chosen model on the fit slice, and
+compare on the validation slice. The rule, set before running it: adopt the wider
+score only if validation PR-AUC (at-risk) improves by at least 0.005.
+""")
+
+code("""
+def with_linked_mpi(frame, fit_rows):
+    # Replace the exact-join MPI (and its missing flag) with the linked province score
+    out = frame.copy()
+    linked = df.loc[model_df.index, "MPI_linked"]
+    out["MPI_missing"] = linked.isna().astype("int8")
+    out["MPI"] = linked.fillna(linked[fit_rows].median())
+    return out
+
+
+X_linked = with_linked_mpi(build_matrix(is_fit)[0], is_fit)
+cols = model_columns(X_linked, with_trend)
+m = make_model().fit(X_linked.loc[is_fit, cols], y[is_fit])
+linked_val_pr_auc = at_risk_pr_auc(y[is_val], m.predict_proba(X_linked.loc[is_val, cols])[:, 1])
+linked_gain = linked_val_pr_auc - validation_pr_auc[best_model_name]
+adopt_linked = linked_gain >= 0.005
+del X_linked, m
+print(f"validation PR-AUC (at-risk): exact-join MPI {validation_pr_auc[best_model_name]:.4f}, "
+      f"linked MPI {linked_val_pr_auc:.4f} (change {linked_gain:+.4f})")
+print("decision:", "adopt the linked score" if adopt_linked else "keep the exact-join score (gain below 0.005)")
+""")
+
+md("""
+LINKED_TEXT
+""")
+
 # =====================================================================
 # 8. DAYS TO FUND
 # =====================================================================
@@ -1363,6 +1513,31 @@ results["regional_poverty"] = {
     "settled_loans_in_regions_share": float(region_loan_share),
     "pearson_mpi_vs_share_funded": float(mpi_corr),
     "spearman_mpi_vs_share_funded": float(mpi_corr_rank),
+}
+results["regional_poverty_linked"] = {
+    "loans_with_linked_mpi_share": float(linked_coverage),
+    "provinces_min_20_settled_loans": len(province_summary),
+    "countries": int(province_summary["country"].nunique()),
+    "settled_loans_in_provinces_share": float(linked_share),
+    "pearson_mpi_vs_share_funded": float(linked_corr),
+    "spearman_mpi_vs_share_funded": float(linked_corr_rank),
+    "share_fully_funded_by_poverty_fifth": [float(v) for v in funded_by_fifth["share_fully_funded"]],
+}
+results["walk_forward"] = {
+    "model": best_model_name,
+    "windows": [{k: (float(v) if isinstance(v, (float, np.floating)) else v) for k, v in r.items()}
+                for r in walk_forward.to_dict(orient="records")],
+    "pr_auc_at_risk_min": float(walk_forward["pr_auc_at_risk"].min()),
+    "pr_auc_at_risk_max": float(walk_forward["pr_auc_at_risk"].max()),
+    "lift_over_random_min": float(walk_forward["lift_over_random"].min()),
+    "lift_over_random_max": float(walk_forward["lift_over_random"].max()),
+}
+results["linked_mpi_challenger"] = {
+    "rule": "adopt if validation PR-AUC (at-risk) improves by at least 0.005",
+    "validation_pr_auc_exact": float(validation_pr_auc[best_model_name]),
+    "validation_pr_auc_linked": float(linked_val_pr_auc),
+    "gain": float(linked_gain),
+    "adopted": bool(adopt_linked),
 }
 results["days_to_fund"] = {
     "rows": len(X_reg),
