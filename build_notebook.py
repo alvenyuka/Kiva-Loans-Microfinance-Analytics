@@ -1092,7 +1092,12 @@ walk_forward.round(3)
 """)
 
 md("""
-WALK_FORWARD_TEXT
+Across the four windows the at-risk PR-AUC runs from about 0.39 to 0.50, and in every window it is between
+about 5 and 14 times what random ranking would score. The raw number moves partly because the share of
+unfunded loans moves (from about 8% down to about 3%), which is why the lift over random is shown next to it.
+The published 0.374 sits at the low end of this range: it comes from one model trained up to October 2016 and
+scored on the last two windows together, whereas the walk-forward refits before each window. The headline is
+therefore a cautious figure, and the model keeps its usefulness as time moves on.
 
 **Step 7.10: Does the wider poverty score help the model?** Section 5 linked about
 71% of loans to a province poverty score, against 7.6% for the exact join the
@@ -1124,7 +1129,10 @@ print("decision:", "adopt the linked score" if adopt_linked else "keep the exact
 """)
 
 md("""
-LINKED_TEXT
+The wider poverty score does not help the model: validation PR-AUC moves from 0.4902 to 0.4880, below the
+0.005 gain the rule required, so the model keeps the exact-join score and its published results are unchanged.
+That fits the answer to question 2: across most of the data, poverty is only weakly related to whether a loan
+gets funded, and the model's risk ranking rests mainly on the loan's own terms (Step 7.7).
 """)
 
 # =====================================================================

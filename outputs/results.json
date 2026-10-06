@@ -1,9 +1,9 @@
 {
   "provenance": {
-    "run_date_utc": "2026-10-04",
-    "runtime_minutes": 26,
-    "peak_memory_gb": 4.1,
-    "git_commit": "e6faf45e267fea568b387b03456ad0aa4d717f82",
+    "run_date_utc": "2026-10-06",
+    "runtime_minutes": 38,
+    "peak_memory_gb": 5.0,
+    "git_commit": "d95afb1ea449e514b2de2b1802f4169458b4c8c4",
     "uncommitted_code_changes": false,
     "python": "3.13.9",
     "packages": {
@@ -111,6 +111,69 @@
     "pearson_mpi_vs_share_funded": 0.3029807011636179,
     "spearman_mpi_vs_share_funded": 0.37471263485513673
   },
+  "regional_poverty_linked": {
+    "loans_with_linked_mpi_share": 0.7092572313972632,
+    "provinces_min_20_settled_loans": 240,
+    "countries": 47,
+    "settled_loans_in_provinces_share": 0.7064021218974923,
+    "pearson_mpi_vs_share_funded": 0.08083601012463724,
+    "spearman_mpi_vs_share_funded": 0.12134652036099083,
+    "share_fully_funded_by_poverty_fifth": [
+      0.9205799444966457,
+      0.9708335397777007,
+      0.9615364391628983,
+      0.9577214547300482,
+      0.930036003069114
+    ]
+  },
+  "walk_forward": {
+    "model": "LightGBM + time trend",
+    "windows": [
+      {
+        "test_window": "2016-03-04 to 2016-07-05",
+        "train_loans": 387050,
+        "test_loans": 64508,
+        "not_funded_share": 0.08270292056799156,
+        "pr_auc_at_risk": 0.3939813629702267,
+        "lift_over_random": 4.763814388469238
+      },
+      {
+        "test_window": "2016-07-05 to 2016-10-27",
+        "train_loans": 451558,
+        "test_loans": 64508,
+        "not_funded_share": 0.0820983443913933,
+        "pr_auc_at_risk": 0.5025633128457372,
+        "lift_over_random": 6.121479264549249
+      },
+      {
+        "test_window": "2016-10-27 to 2017-02-20",
+        "train_loans": 516066,
+        "test_loans": 64508,
+        "not_funded_share": 0.06368202393501576,
+        "pr_auc_at_risk": 0.4708307956203893,
+        "lift_over_random": 7.393464694225925
+      },
+      {
+        "test_window": "2017-02-20 to 2017-05-26",
+        "train_loans": 580574,
+        "test_loans": 64509,
+        "not_funded_share": 0.028662667224728322,
+        "pr_auc_at_risk": 0.4092807139496721,
+        "lift_over_random": 14.279226379761711
+      }
+    ],
+    "pr_auc_at_risk_min": 0.3939813629702267,
+    "pr_auc_at_risk_max": 0.5025633128457372,
+    "lift_over_random_min": 4.763814388469238,
+    "lift_over_random_max": 14.279226379761711
+  },
+  "linked_mpi_challenger": {
+    "rule": "adopt if validation PR-AUC (at-risk) improves by at least 0.005",
+    "validation_pr_auc_exact": 0.49021334175365616,
+    "validation_pr_auc_linked": 0.4880173151858422,
+    "gain": -0.00219602656781398,
+    "adopted": false
+  },
   "days_to_fund": {
     "rows": 604019,
     "test_rows": 123059,
@@ -119,7 +182,7 @@
     "mae_model_days": 7.043078531504381,
     "mae_baseline_days": 8.075832180431068,
     "baseline_train_median_days": 10.240393518518518,
-    "r2_model": 0.24752168883691394
+    "r2_model": 0.24752168883691406
   },
   "priority_regions": {
     "regions": 57,

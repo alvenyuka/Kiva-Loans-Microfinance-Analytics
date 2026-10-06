@@ -22,7 +22,7 @@ cannot apply them to every loan. The project asks:
 | Question | Short answer |
 |---|---|
 | Can the loans that will fall short be identified when they are posted? | Yes, well enough to prioritise: the riskiest 10% of new loans hold 76% of the unfunded dollars |
-| Does that risk fall hardest on the poorest regions? | Not in the data that can test it: poorer regions were funded slightly more often, and only 7.6% of loans can be matched to a poverty score |
+| Does that risk fall hardest on the poorest regions? | No. Across provinces holding 70.6% of settled loans the link is weak, and both the poorest and the least poor fifth are funded less often than the middle |
 
 ## Which loans are at risk when they are posted?
 
@@ -39,6 +39,11 @@ Every candidate was chosen on a validation period and scored once on the 129,017
 The chosen model was picked on validation only. Plain LightGBM scores higher on the test period, but choosing it
 for that reason would turn the test set into a second validation set, so the published figure is 0.374. At the
 default score threshold the chosen model catches 86% of at-risk loans with 19% precision.
+
+**Is the score stable over time?** A walk-forward test retrains the chosen model before each of four later
+windows of 64,508 loans and scores the next window. At-risk PR-AUC runs from 0.394 to 0.503, always 4.8 to 14.3
+times what random ranking would score, as the unfunded share falls from 8.3% to 2.9%. The published 0.374, from
+a single model scored on the last two windows together, is at the cautious end.
 
 ![Top features by mean absolute SHAP value: loan term, loan amount, the time trend and posting month lead](figs/shap_summary.png)
 
@@ -67,18 +72,32 @@ platform with a fixed budget for featuring or matching funds, this turns an unma
 
 ## Does the risk fall hardest on the poorest regions?
 
-Not in the data that can test it. Across 75 regions with at least 20 settled loans and a known poverty score,
-the correlation between poverty and the share of loans fully funded is positive (0.303; rank correlation
-0.375): poorer regions were funded slightly more often, not less. These regions hold only 7.5% of settled loans,
-and the correlation is measured across regions, not borrowers, so it does not show that poorer borrowers are
-favoured.
+No, and the wider data changes the shape of the answer.
+
+**The first test was too narrow.** Matching each loan's region name to Kiva's regional Multidimensional Poverty
+Index directly works for only 7.6% of loans, because loans name towns ("Lahore", "Kisii") while the index is by
+province. On those few loans, across 75 regions, poorer regions were funded slightly more often (correlation
+0.303; rank correlation 0.375), but that rests on 7.5% of settled loans.
+
+**Kiva's own region link widens it to most of the data.** Kiva publishes a link from loan regions to
+poverty-index provinces (`loan_themes_by_region.csv`). Through it, 70.9% of loans get a poverty score. Across 240
+provinces in 47 countries, holding 70.6% of settled loans, the straight-line link between poverty and funding is
+weak (correlation 0.081; rank correlation 0.121), and the shape is not a line:
+
+| Poverty of the borrower's province | Least poor fifth | Second | Middle | Fourth | Poorest fifth |
+|---|---:|---:|---:|---:|---:|
+| Loans fully funded | 92.1% | 97.1% | 96.2% | 95.8% | 93.0% |
+
+Funding risk is somewhat higher at both ends, not concentrated on the poorest. The link is approximate (Kiva
+assigned it by nearest point), and the comparison is between provinces, not borrowers.
 
 ![Loan volume and funding success rate by region on a world map](figs/geo_funding_vs_poverty.png)
 
-**Poverty data is too sparse to target by region yet.** Only 7.6% of loans match a regional Multidimensional
-Poverty Index score, most likely because the loans' free-text region names rarely match the index's. Within the matched
-loans, regions in Timor-Leste, Nigeria and Guatemala combine deep poverty with the highest predicted funding
-risk on a rank-based priority index, which shows the method rather than a targeting list.
+**It does not help the risk model either.** Swapping the wider poverty score into the model was tested under a
+rule fixed beforehand (adopt only for a clear gain in validation PR-AUC, recorded in `outputs/results.json`); it fell slightly, from 0.4902 to
+0.4880, so the model keeps the exact-join score. Within the exactly matched loans, regions in Timor-Leste,
+Nigeria and Guatemala combine deep poverty with the highest predicted funding risk on a rank-based priority
+index, which shows the method rather than a targeting list.
 
 ## How the answers were built
 
@@ -128,10 +147,10 @@ regions, with a baseline before every model and checks that stop the run at any 
 ## What the results cannot show
 
 - **Correlational only.** Nothing here shows that a factor causes funding success, and the poverty link is
-  measured across regions, not individual borrowers.
-- **A single test window.** The validation slice had a higher unfunded share (9.6%) than the test period (4.6%),
-  and the two LightGBM candidates swap order between them. Walk-forward windows would show how stable the 0.374
-  figure is.
+  measured across provinces, not individual borrowers, through a link Kiva assigned by nearest point.
+- **Model choice rests on one validation slice.** The validation slice had a higher unfunded share (9.6%) than
+  the test period (4.6%), and the two LightGBM candidates swap order between them. The walk-forward test shows
+  the chosen model's score holds across later windows; it does not re-run the choice in each window.
 - **Scores rank, they are not probabilities.** Balanced class weights move every score towards 0.5, so region
   priority uses ranks rather than multiplying scores by poverty.
 - **Days-to-fund is truncated.** Recent loans that were still raising money at the snapshot have no
@@ -150,7 +169,7 @@ python build_notebook.py
 jupyter nbconvert --to notebook --execute Kiva_Loans_Microfinance_Analytics.ipynb --output Kiva_Loans_Microfinance_Analytics.ipynb --ExecutePreprocessor.timeout=3600
 ```
 
-The last recorded run took 26 minutes and peaked at 4.1 GB of memory.
+The last recorded run took 38 minutes and peaked at 5.0 GB of memory.
 
 ```
 Kiva_Loans_Microfinance_Analytics.ipynb   the analysis, organised around the two questions, executed end to end

@@ -123,6 +123,16 @@ https://www.kaggle.com/datasets/kiva/data-science-for-good-kiva-crowdfunding
   0.303 (Pearson) and 0.375 (Spearman). Both are positive: in this matched subset,
   poorer regions were funded slightly more often, not less. The correlation is
   ecological, so it does not show that poorer borrowers are favoured.
+- **A wider test of question 2 (Steps 5.7 to 5.9):** loans name towns while the
+  MPI is published by province, which is why the exact join reaches only 7.6%.
+  Kiva's own link from loan regions to MPI provinces (`mpi_region` in
+  `loan_themes_by_region.csv`, the most common link per loan region) gives 70.9% of
+  loans a poverty score. Across 240 provinces in 47 countries with at least 20
+  settled loans (70.6% of settled loans) the correlation with the share fully
+  funded is weak, 0.081 (Pearson) and 0.121 (Spearman). By poverty fifth the share
+  fully funded is 92.1%, 97.1%, 96.2%, 95.8% and 93.0% from least to most poor:
+  higher risk at both ends, not concentrated on the poorest. Kiva assigned the
+  link by nearest point, so a few regions land in a neighbouring province.
 - **Censoring-aware target (Section 6.1):** the snapshot ends 2017-07-26 and Kiva
   loans fundraise for weeks, so a loan posted near that date with no `funded_time`
   is "not funded yet", not "not funded". The notebook prints the funded rate by
@@ -225,8 +235,12 @@ censoring above had to be measured separately.
 
 **The test period is one stretch of time.** Scoring on the latest 20% is the honest
 form for a model that will score future loans, but it is a single out-of-time
-window, and the validation slice before it had twice the unfunded share. Walk-forward
-windows would show how stable the 0.374 figure is.
+window, and the validation slice before it had twice the unfunded share. The
+walk-forward test (Step 7.9) retrains the chosen model before each of four later
+windows of about 64,500 loans: at-risk PR-AUC runs from 0.394 to 0.503, between 4.8
+and 14.3 times the random baseline, as the unfunded share falls from 8.3% to 2.9%.
+The published 0.374 is at the cautious end. The model choice itself is still made
+once, on one validation slice.
 
 **Trend and season.** Under a time split, month of posting can stand in for a
 platform-wide trend. The time-trend candidate gives the model that trend directly;
@@ -255,7 +269,11 @@ could not be matched to a region-level MPI score, most likely because
 partners) doesn't standardize against the MPI lookup table's `region` field
 well enough for an exact string join. Every MPI-dependent result, the Section 5
 map and correlation, the `MPI` feature in the Section 7 model, and the Section
-9 priority-regions table, describes only that small, non-random subset.
+9 priority-regions table, describes only that small, non-random subset. Kiva's
+own region-to-province link raises coverage to 70.9% and is used to re-test
+question 2 (Section 5); as a model input it was tested under a rule fixed
+beforehand (adopt for a validation PR-AUC gain of at least 0.005) and rejected,
+because validation PR-AUC fell from 0.4902 to 0.4880 (Step 7.10).
 
 **The Section 5 MPI correlation is an ecological one.** The 0.303 figure is
 computed across 75 regions, between a region's MPI and its share of settled loans
@@ -286,7 +304,7 @@ jupyter nbconvert --to notebook --execute Kiva_Loans_Microfinance_Analytics.ipyn
 ```
 
 The tests take seconds and need nothing. The last recorded run of the notebook
-took 26 minutes end to end and peaked at 4.1 GB of memory (both written to
+took 38 minutes end to end and peaked at 5.0 GB of memory (both written to
 `outputs/results.json`), most of it the 671,205-row loan table, the two encoded
 model matrices and the scaled copy the logistic regression needs.
 
@@ -342,8 +360,8 @@ runs them without the ~200MB of Kiva CSVs. The analysis itself stays a local ste
 - [x] Time-based train/test split
 - [x] Remove mis-keyed MPI coordinates before mapping
 - [x] Choose the model on a validation slice; write results.json with provenance
-- [ ] Walk-forward evaluation over several later windows
-- [ ] Improve MPI join coverage beyond 7.6% (fuzzy/normalized region matching)
+- [x] Walk-forward evaluation over four later windows
+- [x] Improve MPI coverage beyond 7.6%: Kiva's region-to-province link reaches 70.9% (question 2 re-tested; rejected as a model input by the challenger rule)
 - [ ] Language detection for non-English `use` text before TF-IDF
 
 ## License
