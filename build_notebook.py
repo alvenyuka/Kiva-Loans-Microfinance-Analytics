@@ -76,7 +76,6 @@ the same numbers.
 """)
 
 code("""
-import os
 import sys
 import time
 from pathlib import Path
@@ -114,23 +113,14 @@ from features import (
 """)
 
 md("""
-**Step 1.3:** Point the notebook at the data. The Kiva CSVs (about 200 MB) are
-not stored in the repository; put them in `./data` or set `KIVA_DATA_DIR`.
+**Step 1.3:** Confirm the environment. The Kiva CSVs (about 200 MB) are not
+stored in the repository: download the "Data Science for Good: Kiva Crowdfunding"
+dataset from Kaggle and put `kiva_loans.csv`, `kiva_mpi_region_locations.csv` and
+`loan_themes_by_region.csv` in the `data` folder next to this notebook.
 """)
 
 code("""
-DATA_DIR = Path(os.environ.get("KIVA_DATA_DIR", "data"))
-if not (DATA_DIR / "kiva_loans.csv").exists():
-    raise FileNotFoundError(
-        "kiva_loans.csv not found under " + str(DATA_DIR.resolve()) + '''
-
-Download the "Data Science for Good: Kiva Crowdfunding" dataset from
-https://www.kaggle.com/datasets/kiva/data-science-for-good-kiva-crowdfunding
-then either put the CSVs in ./data or set KIVA_DATA_DIR to the folder holding them.'''
-    )
-
 print("Setup OK. pandas:", pd.__version__, "| numpy:", np.__version__)
-print("Data directory:", "KIVA_DATA_DIR" if "KIVA_DATA_DIR" in os.environ else "./data")
 """)
 
 # =====================================================================
@@ -161,11 +151,8 @@ LOAN_DTYPES = {
     "repayment_interval": "category",
 }
 
-df = pd.read_csv(
-    DATA_DIR / "kiva_loans.csv",
-    dtype=LOAN_DTYPES,
-    parse_dates=["posted_time", "disbursed_time", "funded_time", "date"],
-)
+df = pd.read_csv("data/kiva_loans.csv", dtype=LOAN_DTYPES,
+                 parse_dates=["posted_time", "disbursed_time", "funded_time", "date"])
 df["funded_amount"] = df["funded_amount"].astype("float32")
 df["loan_amount"] = df["loan_amount"].astype("float32")
 
@@ -435,7 +422,7 @@ hand.
 """)
 
 code("""
-mpi = pd.read_csv(DATA_DIR / "kiva_mpi_region_locations.csv")
+mpi = pd.read_csv("data/kiva_mpi_region_locations.csv")
 mpi = mpi[["country", "region", "MPI", "lat", "lon"]].drop_duplicates(subset=["country", "region"])
 print(f"MPI lookup: {len(mpi):,} regions, {mpi['MPI'].notna().sum():,} with an MPI score")
 """)
@@ -566,12 +553,12 @@ loan region to more than one province, the most common link is used.
 """)
 
 code("""
-themes = pd.read_csv(DATA_DIR / "loan_themes_by_region.csv", usecols=["country", "region", "mpi_region"])
+themes = pd.read_csv("data/loan_themes_by_region.csv", usecols=["country", "region", "mpi_region"])
 link = (themes.dropna(subset=["mpi_region"])
         .groupby(["country", "region"])["mpi_region"]
         .agg(lambda s: s.mode().iloc[0])           # the most common province for each loan region
         .reset_index())
-mpi_by_location = (pd.read_csv(DATA_DIR / "kiva_mpi_region_locations.csv")
+mpi_by_location = (pd.read_csv("data/kiva_mpi_region_locations.csv")
                    .dropna(subset=["MPI", "LocationName"])
                    .drop_duplicates("LocationName")
                    .set_index("LocationName")["MPI"])

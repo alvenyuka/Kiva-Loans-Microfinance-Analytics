@@ -56,7 +56,7 @@ than two copies that drift apart.
 
 ## Quick Start
 
-1. Download the two source CSVs (see Dataset below) into `./data`, or put them anywhere and set `KIVA_DATA_DIR` to that folder.
+1. Download the three source CSVs (see Dataset below) into `./data`.
 2. `pip install -r requirements.txt`
 3. `python -m pytest` to check the leakage guard and feature logic. This needs no data and takes a few seconds.
 4. Run `build_notebook.py`, then execute the generated notebook end to end (full commands under Running it below). Note that step 4 overwrites the committed notebook with a fresh, output-free copy, so its stored outputs are gone until you execute it.
@@ -297,21 +297,21 @@ pip install -r requirements.txt
 python -m pytest
 
 # the notebook
-export KIVA_DATA_DIR=/path/to/kiva/csvs      # or put them in ./data
 python build_notebook.py
 jupyter nbconvert --to notebook --execute Kiva_Loans_Microfinance_Analytics.ipynb \
   --output Kiva_Loans_Microfinance_Analytics.ipynb --ExecutePreprocessor.timeout=3600
 ```
 
 The tests take seconds and need nothing. The last recorded run of the notebook
-took 38 minutes end to end and peaked at 5.0 GB of memory (both written to
-`outputs/results.json`), most of it the 671,205-row loan table, the two encoded
-model matrices and the scaled copy the logistic regression needs.
+took 96 minutes end to end on a loaded machine (about 2 GB of memory free at the
+start, another notebook running alongside; an earlier run on a free machine took
+38 minutes) and peaked at 4.6 GB of memory (both written to `outputs/results.json`),
+most of it the 671,205-row loan table, the two encoded model matrices and the
+scaled copy the logistic regression needs.
 
-`kiva_loans.csv` and `kiva_mpi_region_locations.csv` (see Dataset above) go in
-`./data`, or anywhere you point `KIVA_DATA_DIR` at. The setup cell raises a named
-error if it cannot find them, rather than failing several cells later with
-something that looks like a data problem.
+`kiva_loans.csv`, `kiva_mpi_region_locations.csv` and `loan_themes_by_region.csv`
+(see Dataset above) go in `./data`; the notebook reads them with plain `pd.read_csv`
+calls, so a missing file fails at the loading step with the path in the error.
 
 ## Tests
 

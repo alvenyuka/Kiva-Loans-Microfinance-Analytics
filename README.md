@@ -164,12 +164,13 @@ regions, with a baseline before every model and checks that stop the run at any 
 ```bash
 pip install -r requirements.txt
 python -m pytest              # no dataset needed
-# put kiva_loans.csv and kiva_mpi_region_locations.csv in ./data (or set KIVA_DATA_DIR)
+# put kiva_loans.csv, kiva_mpi_region_locations.csv and loan_themes_by_region.csv in ./data
 python build_notebook.py
 jupyter nbconvert --to notebook --execute Kiva_Loans_Microfinance_Analytics.ipynb --output Kiva_Loans_Microfinance_Analytics.ipynb --ExecutePreprocessor.timeout=3600
 ```
 
-The last recorded run took 38 minutes and peaked at 5.0 GB of memory.
+The last recorded run took 96 minutes on a loaded machine (about 2 GB of memory free at the start, another
+notebook running alongside) and peaked at 4.6 GB of memory.
 
 ```
 Kiva_Loans_Microfinance_Analytics.ipynb   the analysis, organised around the two questions, executed end to end
