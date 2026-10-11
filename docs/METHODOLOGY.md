@@ -20,18 +20,18 @@ Kiva-Loans-Microfinance-Analytics/
 ├── Kiva_Loans_Microfinance_Analytics.ipynb   # the notebook, run end to end
 ├── src/
 │   ├── features.py                           # leakage guard, funding target, gender parsing
-│   └── impact.py                             # funding-shortfall capture (Section 9.1)
+│   └── impact.py                             # funding-shortfall capture (Section 12)
 ├── tests/
 │   ├── test_features.py                      # leakage guard, target, gender parsing; no dataset needed
 │   ├── test_impact.py                        # shortfall arithmetic behind the business-impact table
 │   └── test_readme_numbers.py                # every README number appears in outputs/results.json
 ├── figs/
-│   ├── geo_funding_vs_poverty.png            # Section 5 geospatial/MPI figure
-│   ├── pr_curve.png                          # Section 7.1 precision-recall curve, at-risk class
-│   ├── shap_summary.png                      # Section 7 SHAP summary plot
-│   ├── shap_beeswarm.png                     # Section 7.2 SHAP direction
-│   ├── calibration.png                       # Section 7.5 reliability diagram
-│   └── shortfall_capture.png                 # Section 9.1 shortfall captured by risk ranking
+│   ├── geo_funding_vs_poverty.png            # Step 5.8 province map
+│   ├── pr_curve.png                          # Step 9.3 precision-recall curve, at-risk class
+│   ├── shap_summary.png                      # Step 11.2 SHAP summary plot
+│   ├── shap_beeswarm.png                     # Step 11.3 SHAP direction
+│   ├── calibration.png                       # Step 9.7 reliability diagram
+│   └── shortfall_capture.png                 # Step 12.4 shortfall captured by risk ranking
 ├── outputs/
 │   └── results.json                          # every headline number, with package versions and git commit
 ├── docs/METHODOLOGY.md                       # this file
@@ -45,12 +45,18 @@ Kiva-Loans-Microfinance-Analytics/
 
 The notebook is the source: edit it directly, then restart the kernel and run every
 cell so the outputs, figures and results file match the code. It is written to be
-followed and recreated, and is organised around
-the project's two questions: what the data can support (sections 1 to 6), which
-loans are at risk (7 and 8), whether that risk falls on the poorest regions and
-what to do about it (9), then limits and the results record (10 and 11). Each
-section is broken into small numbered steps of one short code cell, every model
-is compared with a baseline, and "Check" assertions stop the run at the step that
+followed and recreated, in the format of the WorldQuant University Applied Data
+Science Lab notebooks: **Prepare Data** (sections 1 to 5: a `wrangle` function
+per CSV file, then exploration of the loans, the outcome, the text and poverty by
+place), **Split** (section 6), **Build Model** (sections 7 to 10: baseline,
+iterate on a validation slice, evaluate once on the test period, and a second
+model for days to fund) and **Communicate Results** (sections 11 to 15: SHAP,
+the province priority list and business impact, the answers and limitations, the
+results file, and exercises with a key-terms table). It opens with a recreation
+guide and a table of checkpoints. Each section is broken into small numbered
+steps of one short code cell followed by a plain-language read of its output,
+"What's ...?" boxes explain each concept where it first appears, every model is
+compared with a baseline, and "Check" assertions stop the run at the step that
 went wrong.
 
 The logic the conclusions rest on lives in `src/features.py` and
@@ -63,22 +69,22 @@ than two copies that drift apart.
 2. `pip install -r requirements.txt`
 3. `python -m pytest` to check the leakage guard and feature logic. This needs no data and takes a few seconds.
 4. Execute the notebook end to end (full command under Running it below). This overwrites the stored outputs with the new run's.
-5. Section 7 (funding-risk model + SHAP) has the headline result; Section 9 has the region-priority synthesis; `outputs/results.json` holds every headline number with the package versions and git commit of the run.
+5. Sections 7 to 9 (funding-risk model) have the headline result, Section 11 explains it with SHAP, and Section 12 has the province-priority synthesis and business impact; `outputs/results.json` holds every headline number with the package versions and git commit of the run.
 
 ## Features
 
-- **Exploratory analysis** across loan amount, sector, country, and borrower gender composition, then the outcome itself: the unfunded share by loan term, amount, repayment schedule, borrower group and sector, before any model (Section 3).
+- **Exploratory analysis** across loan amount, sector, country, and borrower gender composition, then the outcome itself: the unfunded share by loan term, amount, repayment schedule, borrower group and sector, before any model (Sections 2 and 3).
 - **Text mining** of the free-text `use` field via TF-IDF, producing coherent per-sector vocabulary (Section 4).
 - **Geospatial join** against Kiva's region-level Multidimensional Poverty Index, with coverage reported and mis-keyed coordinates removed (Section 5).
 - **Leakage-checked feature engineering**: outcome-dependent columns (`funded_time`, `disbursed_time`, `lender_count`, `funded_amount`) explicitly excluded because they aren't knowable at posting time (Section 6).
-- **Censoring-aware target and out-of-time evaluation**: loans whose outcome was not yet known are excluded, and models are scored on loans posted after the training period (Section 6).
-- **Funding-risk classification** (Logistic Regression, Random Forest, LightGBM, and LightGBM with a time trend), chosen on a validation slice and evaluated on minority-class PR-AUC, because the majority-class number looks good regardless of whether the model works, with the full precision-recall curve (Section 7).
-- **SHAP ranking and direction**: mean |SHAP| ranking plus a beeswarm and banded SHAP values showing which way term and amount push the score (Section 7.2).
-- **Performance by segment**: ROC-AUC, PR-AUC and lift within borrower groups, repayment schedules, sectors and countries (Section 7.4).
-- **Calibration**: isotonic calibration on the validation slice, judged by Brier score and a reliability diagram on the test period (Section 7.5).
-- **Days-to-fund regression** on funded loans (Section 8).
-- **Province-priority synthesis** combining funding-risk and poverty ranks into a relative priority index, checked against the actual unfunded share (Section 9).
-- **Results file** with provenance, checked against the README by a test (Section 11).
+- **Censoring-aware target and out-of-time evaluation**: loans whose outcome was not yet known are excluded, and models are scored on loans posted after the training period (Sections 3 and 6).
+- **Funding-risk classification** (Logistic Regression, Random Forest, LightGBM, and LightGBM with a time trend), chosen on a validation slice and evaluated on minority-class PR-AUC, because the majority-class number looks good regardless of whether the model works, with the full precision-recall curve (Sections 7 to 9).
+- **SHAP ranking and direction**: mean |SHAP| ranking plus a beeswarm and banded SHAP values showing which way term and amount push the score (Section 11).
+- **Performance by segment**: ROC-AUC, PR-AUC and lift within borrower groups, repayment schedules, sectors and countries (Step 9.6).
+- **Calibration**: isotonic calibration on the validation slice, judged by Brier score and a reliability diagram on the test period (Step 9.7).
+- **Days-to-fund regression** on funded loans (Section 10).
+- **Province-priority synthesis** combining funding-risk and poverty ranks into a relative priority index, checked against the actual unfunded share (Section 12).
+- **Results file** with provenance, checked against the README by a test (Section 14).
 
 ## Tech Stack
 
@@ -101,7 +107,7 @@ https://www.kaggle.com/datasets/kiva/data-science-for-good-kiva-crowdfunding
 
 ## Methodology
 
-- **EDA (Section 3):** loan amounts are right-skewed (median $500, mean $842, max
+- **EDA (Section 2):** loan amounts are right-skewed (median $500, mean $842, max
   $100,000); the three largest sectors are Agriculture (180,302 loans), Food (136,657),
   and Retail (124,494); the top countries by volume are the Philippines (160,441),
   Kenya (75,825), and El Salvador (39,875); borrower gender composition skews female
@@ -109,7 +115,7 @@ https://www.kaggle.com/datasets/kiva/data-science-for-good-kiva-crowdfunding
 - **Text mining (Section 4):** TF-IDF (30 terms, 1-2 grams, `min_df=50`) on the free-text
   `use` field shows the common vocabulary. This exploratory vocabulary is fitted on
   all loans and is not a model input; the model's term-presence flags are refitted
-  on training loans only (Section 6.2). Per-sector vocabulary is coherent and
+  on training loans only (Step 6.3). Per-sector vocabulary is coherent and
   non-degenerate (Agriculture -> farm/fertilizer/seeds,
   Food -> fish/rice/ingredients, Personal Use -> drinking/filter/solar/water).
 - **Geospatial + MPI join (Section 5):** each loan's `country` + `region` is joined
@@ -123,7 +129,7 @@ https://www.kaggle.com/datasets/kiva/data-science-for-good-kiva-crowdfunding
   the model uses, are kept. The same file stores some names mis-encoded upstream
   ("Maranhðo", "Rondðnia" for Maranhão and Rondônia); the file is valid UTF-8, so
   this is a defect in the source, and the names are printed as stored.
-- **Does funding risk fall hardest on the poorest regions? (Section 5.1):** across the
+- **Does funding risk fall hardest on the poorest regions? (Steps 5.3 and 5.4):** across the
   75 regions with at least 20 settled loans and a known MPI (48,590 loans, 7.5% of
   settled loans), the correlation between MPI and the share of loans fully funded is
   0.303 (Pearson) and 0.375 (Spearman). Both are positive: in this matched subset,
@@ -139,28 +145,28 @@ https://www.kaggle.com/datasets/kiva/data-science-for-good-kiva-crowdfunding
   fully funded is 92.1%, 97.1%, 96.2%, 95.8% and 93.0% from least to most poor:
   higher risk at both ends, not concentrated on the poorest. Kiva assigned the
   link by nearest point, so a few regions land in a neighbouring province.
-- **Censoring-aware target (Section 6.1):** the snapshot ends 2017-07-26 and Kiva
+- **Censoring-aware target (Step 3.1):** the snapshot ends 2017-07-26 and Kiva
   loans fundraise for weeks, so a loan posted near that date with no `funded_time`
   is "not funded yet", not "not funded". The notebook prints the funded rate by
   posting age: 93.5% for loans posted more than 90 days before the snapshot, 89.3% at
   46 to 60 days, 74.0% at 31 to 45 days, 34.8% at 15 to 21 days and 16.4% in the
   final week. Loans posted within 60 days of the snapshot (26,122, or 3.9%) are
   excluded, leaving 645,083 loans with a settled outcome, 6.4% of them not funded.
-- **Feature engineering with an explicit leakage check (Section 6.1):** `funded_time`,
+- **Feature engineering with an explicit leakage check (Step 6.1):** `funded_time`,
   `disbursed_time`, `lender_count`, and `funded_amount` are excluded because they are
   consequences of a loan being funded, not knowable at posting time. The guard runs
   before and after one-hot encoding. The model matrix has 306 columns: posting-time
   loan and borrower fields, the MPI join with an `MPI_missing` flag, TF-IDF
   term-presence flags, and `months_since_start`, a time-trend column (months since
   the first loan in the data) used only by the time-trend candidate.
-- **Time-based split, preprocessing fitted on earlier loans (Section 6.2):** the
+- **Time-based split, preprocessing fitted on earlier loans (Steps 6.2 to 6.4):** the
   earliest 80% of settled loans by posting date (516,066, up to 2016-10-27) form the
   training period and the most recent 20% (129,017) the test period. The training
   period is split again by date: a fit slice (412,853 loans, up to 2016-04-23) and a
   validation slice (103,213 loans). The TF-IDF vocabulary and the `MPI` and
   `pct_female` medians are fitted on the fit slice for model selection and on the
   whole training period for the final model.
-- **Funding-risk model + SHAP (Section 7):** Logistic Regression, Random Forest,
+- **Funding-risk model + SHAP (Sections 7 to 9 and 11):** Logistic Regression, Random Forest,
   LightGBM, and LightGBM with the time-trend column are fitted on the fit slice and
   compared on the validation slice by minority-class PR-AUC, since the notebook's
   actual question, which loans are at risk of *not* being funded, is about the
@@ -168,31 +174,31 @@ https://www.kaggle.com/datasets/kiva/data-science-for-good-kiva-crowdfunding
   once on the test period; the other candidates are refitted and scored for
   reference only. All use balanced class weights, so their outputs are ranking
   scores, not calibrated probabilities. The chosen model is explained with SHAP.
-- **Days-to-fund regression (Section 8):** among settled loans that did get funded, a
+- **Days-to-fund regression (Section 10):** among settled loans that did get funded, a
   Random Forest regresses `days_to_fund = funded_time - posted_time` on the same
   posting-time features, with the same date cut-off separating train and test, and is
   compared with a naive forecast that gives every test loan the training-period
   median.
-- **Outcome EDA (Section 3.5):** the settled-loan target is defined in Step 3.6 and
+- **Outcome EDA (Section 3):** the settled-loan target is defined in `wrangle` (Step 1.7) and
   examined before any model. The unfunded share rises from 0.3% in the shortest-term
   sixth of loans (8 months or less) to 15.6% in the longest (over 18 months), and
   from 0.1% for loans of $225 or less to 14.6% above $1,250, against 6.4% overall.
   Bullet loans go unfunded 13.7% of the time and irregular schedules 2.2%; all-male
   loans 14.5%, all-female 3.9%; Housing (11.3%) and Transportation (10.1%) are the
   riskiest sectors. These are one-variable rates, not adjusted for each other.
-- **Precision-recall curve and SHAP direction (Sections 7.1, 7.2):** the at-risk
+- **Precision-recall curve and SHAP direction (Steps 9.3 and 11.3):** the at-risk
   class reaches 42.9% precision at 25% recall, 32.6% at 50% and 24.4% at 75%. Banded
   SHAP values show terms of 8 months or less adding +2.23 to the log-odds of funding
   and loans of $225 or less adding +2.39, while terms over 11 months and amounts over
   $975 pull the score down; the time trend pushes every test loan towards not
   funded, because a tree model holds it at its last training level.
-- **Performance by segment (Section 7.4):** ROC-AUC is used to compare segments
+- **Performance by segment (Step 9.6):** ROC-AUC is used to compare segments
   because PR-AUC and lift depend on each segment's unfunded share (lift can be at
   most 1 divided by that share). The model ranks worst where risk is highest: 0.850
   within all-male loans against 0.930 within all-female loans, 0.870 for bullet
   loans against 0.954 for irregular schedules, and 0.725 in Pakistan and 0.754 in
   Lebanon, the weakest countries.
-- **Calibration (Section 7.5):** the final model trained on the validation slice, so
+- **Calibration (Step 9.7):** the final model trained on the validation slice, so
   calibration uses the selection-stage version of the chosen model: isotonic
   regression maps its validation scores to outcomes and is applied to its test
   scores. Raw test scores averaged 5.0% (actual 4.6%, Brier 0.0345); calibrated
@@ -200,7 +206,7 @@ https://www.kaggle.com/datasets/kiva/data-science-for-good-kiva-crowdfunding
   unfunded. The final model, same specification trained to a later date, averages
   22.4% while ranking test loans almost identically (rank correlation 0.959): with a
   time trend, where training ends moves the score scale.
-- **Synthesis (Section 9):** the chosen model's test-period scores are averaged by
+- **Synthesis (Section 12):** the chosen model's test-period scores are averaged by
   province, using the poverty score from Kiva's region link, for the 154 provinces in
   42 countries with at least 30 test loans. Because the scores are not calibrated,
   they are not multiplied by MPI. Each province gets a percentile rank on poverty
@@ -245,7 +251,7 @@ were not funded). The validation slice had 9.6% not funded.
   (123,059 in the test period; mean days-to-fund 14.7, standard deviation 14.5).
   Scored out of time, the regression explains a quarter of the variance, so it gives
   a rough expected fundraising time rather than a forecast to plan around.
-- **Business impact (Section 9.1):** the test period's loans fell $5,797,550 short of
+- **Business impact (Section 12):** the test period's loans fell $5,797,550 short of
   full funding. Reviewing loans riskiest first reaches 57.5% of that shortfall at 5% of
   loans, 75.9% at 10%, 92.9% at 20% and 97.7% at 30%; the loans flagged at the default
   threshold (26,388, or 20.5%) cover 93.2%.
@@ -274,7 +280,7 @@ censoring above had to be measured separately.
 **The test period is one stretch of time.** Scoring on the latest 20% is the honest
 form for a model that will score future loans, but it is a single out-of-time
 window, and the validation slice before it had twice the unfunded share. The
-walk-forward test (Step 7.9) retrains the chosen model before each of four later
+walk-forward test (Step 9.5) retrains the chosen model before each of four later
 windows of about 64,500 loans: at-risk PR-AUC runs from 0.394 to 0.503, between 4.8
 and 14.3 times the random baseline, as the unfunded share falls from 8.3% to 2.9%.
 The published 0.374 is at the cautious end. The model choice itself is still made
@@ -289,7 +295,7 @@ can only hold the latest level steady for test loans.
 **Scores are not probabilities, and calibration did not transfer.** Balanced class
 weights move the scores towards 0.5, and with a time trend the score scale also
 shifts with where training ends. Calibration learned on the validation slice
-over-predicted the test period, where the unfunded share halved (Section 7.5).
+over-predicted the test period, where the unfunded share halved (Step 9.7).
 The scores rank loans and provinces, which is how they are used.
 
 **Segment comparisons are noisy at the edges.** Segments with fewer than 50 unfunded
@@ -313,12 +319,12 @@ could not be matched to a region-level MPI score, most likely because
 `kiva_loans.csv`'s free-text `region` field (entered inconsistently by field
 partners) doesn't standardize against the MPI lookup table's `region` field
 well enough for an exact string join. The results built on the exact join, the
-Section 5.1 correlation and the `MPI` feature in the Section 7 model, describe only
+Step 5.4 correlation and the `MPI` feature in the Section 8 model, describe only
 that small, non-random subset. Kiva's own region-to-province link raises coverage
 to 70.9% and is used to re-test question 2, to draw the Section 5 map and to build
-the Section 9 priority table; as a model input it was tested under a rule fixed
+the Section 12 priority table; as a model input it was tested under a rule fixed
 beforehand (adopt for a validation PR-AUC gain of at least 0.005) and rejected,
-because validation PR-AUC fell from 0.4902 to 0.4880 (Step 7.10).
+because validation PR-AUC fell from 0.4902 to 0.4880 (Step 8.3, decided before the test period was scored).
 
 **The Section 5 MPI correlation is an ecological one.** The 0.303 figure is
 computed across 75 regions, between a region's MPI and its share of settled loans

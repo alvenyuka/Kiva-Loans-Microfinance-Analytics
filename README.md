@@ -157,9 +157,11 @@ flowchart LR
 5. **Shortfall capture.** Rank test-period loans by predicted risk and measure the funding shortfall (requested
    minus funded, in US dollars) reached by reviewing the riskiest share first (`src/impact.py`).
 
-The notebook [`Kiva_Loans_Microfinance_Analytics.ipynb`](Kiva_Loans_Microfinance_Analytics.ipynb) follows the
-same questions: what the data can support, which loans are at risk, and whether the risk falls on the poorest
-regions, with a baseline before every model and checks that stop the run at any step that goes wrong.
+The notebook [`Kiva_Loans_Microfinance_Analytics.ipynb`](Kiva_Loans_Microfinance_Analytics.ipynb) is written to
+be followed and recreated step by step, in the Prepare Data, Split, Build Model and Communicate Results format of
+the WorldQuant University Applied Data Science Lab. It opens with a setup guide and a table of checkpoints, uses a
+`wrangle` function for each CSV file, explains each concept where it first appears, reads every output in plain
+language, and has checks that stop the run at any step that goes wrong.
 
 ## What the results cannot show
 
