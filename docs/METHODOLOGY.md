@@ -17,30 +17,30 @@ Funding-risk model on 671,205 Kiva microloans: which loans are at risk of not be
 
 ```
 Kiva-Loans-Microfinance-Analytics/
-├── Kiva_Loans_Microfinance_Analytics.ipynb   # the notebook, run end to end
-├── src/
-│   ├── features.py                           # leakage guard, funding target, gender parsing
-│   └── impact.py                             # funding-shortfall capture (Section 12)
-├── tests/
-│   ├── test_features.py                      # leakage guard, target, gender parsing; no dataset needed
-│   ├── test_impact.py                        # shortfall arithmetic behind the business-impact table
-│   └── test_readme_numbers.py                # every README number appears in outputs/results.json
-├── figs/
-│   ├── geo_funding_vs_poverty.png            # Step 5.8 province map
-│   ├── pr_curve.png                          # Step 9.3 precision-recall curve, at-risk class
-│   ├── shap_summary.png                      # Step 11.2 SHAP summary plot
-│   ├── shap_beeswarm.png                     # Step 11.3 SHAP direction
-│   ├── calibration.png                       # Step 9.7 reliability diagram
-│   └── shortfall_capture.png                 # Step 12.4 shortfall captured by risk ranking
-├── outputs/
-│   └── results.json                          # every headline number, with package versions and git commit
-├── docs/METHODOLOGY.md                       # this file
-├── .github/workflows/ci.yml                  # runs the tests on every push
-├── conftest.py                               # puts src/ on sys.path for the tests
-├── pytest.ini
-├── requirements.txt
-├── LICENSE
-└── README.md
+â”œâ”€â”€ Kiva_Loans_Microfinance_Analytics.ipynb   # the notebook, run end to end
+â”œâ”€â”€ src/
+â”‚   â”œâ”€â”€ features.py                           # leakage guard, funding target, gender parsing
+â”‚   â””â”€â”€ impact.py                             # funding-shortfall capture (Section 12)
+â”œâ”€â”€ tests/
+â”‚   â”œâ”€â”€ test_features.py                      # leakage guard, target, gender parsing; no dataset needed
+â”‚   â”œâ”€â”€ test_impact.py                        # shortfall arithmetic behind the business-impact table
+â”‚   â””â”€â”€ test_readme_numbers.py                # every README number appears in outputs/results.json
+â”œâ”€â”€ figs/
+â”‚   â”œâ”€â”€ geo_funding_vs_poverty.png            # Step 5.8 province map
+â”‚   â”œâ”€â”€ pr_curve.png                          # Step 9.3 precision-recall curve, at-risk class
+â”‚   â”œâ”€â”€ shap_summary.png                      # Step 11.2 SHAP summary plot
+â”‚   â”œâ”€â”€ shap_beeswarm.png                     # Step 11.3 SHAP direction
+â”‚   â”œâ”€â”€ calibration.png                       # Step 9.7 reliability diagram
+â”‚   â””â”€â”€ shortfall_capture.png                 # Step 12.4 shortfall captured by risk ranking
+â”œâ”€â”€ outputs/
+â”‚   â””â”€â”€ results.json                          # every headline number, with package versions and git commit
+â”œâ”€â”€ docs/METHODOLOGY.md                       # this file
+â”œâ”€â”€ .github/workflows/ci.yml                  # runs the tests on every push
+â”œâ”€â”€ conftest.py                               # puts src/ on sys.path for the tests
+â”œâ”€â”€ pytest.ini
+â”œâ”€â”€ requirements.txt
+â”œâ”€â”€ LICENSE
+â””â”€â”€ README.md
 ```
 
 The notebook is the source: edit it directly, then restart the kernel and run every
@@ -125,9 +125,9 @@ https://www.kaggle.com/datasets/kiva/data-science-for-good-kiva-crowdfunding
   of the 892 located regions are flagged as mis-keyed in the upstream file: a region
   whose latitude or longitude sits more than five robust standard deviations (and at
   least 10 degrees) from its country's median is dropped from the map, for example
-  Brazil / Rondônia at -17.8, 31.0, which is in Zimbabwe. Their MPI values, which
+  Brazil / RondÃ´nia at -17.8, 31.0, which is in Zimbabwe. Their MPI values, which
   the model uses, are kept. The same file stores some names mis-encoded upstream
-  ("Maranhðo", "Rondðnia" for Maranhão and Rondônia); the file is valid UTF-8, so
+  ("MaranhÃ°o", "RondÃ°nia" for MaranhÃ£o and RondÃ´nia); the file is valid UTF-8, so
   this is a defect in the source, and the names are printed as stored.
 - **Does funding risk fall hardest on the poorest regions? (Steps 5.3 and 5.4):** across the
   75 regions with at least 20 settled loans and a known MPI (48,590 loans, 7.5% of
@@ -247,7 +247,7 @@ were not funded). The validation slice had 9.6% not funded.
   0.188, `sector_Education` 0.160, `sector_Retail` 0.150, `country_Cambodia` 0.090,
   `sector_Arts` 0.076, `country_Kenya` 0.071, `sector_Food` 0.066.
 - **Days-to-fund regression:** MAE 7.04 days against 8.08 days for the naive
-  training-median forecast (10.2 days), R² = 0.248, on 604,019 settled funded loans
+  training-median forecast (10.2 days), RÂ² = 0.248, on 604,019 settled funded loans
   (123,059 in the test period; mean days-to-fund 14.7, standard deviation 14.5).
   Scored out of time, the regression explains a quarter of the variance, so it gives
   a rough expected fundraising time rather than a forecast to plan around.
@@ -353,7 +353,7 @@ jupyter nbconvert --to notebook --execute Kiva_Loans_Microfinance_Analytics.ipyn
 ```
 
 The tests take seconds and need nothing. The last recorded run of the notebook
-took 19 minutes end to end and peaked at 5.0 GB of memory (both written to
+took 24 minutes end to end and peaked at 4.4 GB of memory (both written to
 `outputs/results.json`; an earlier run on a machine short of memory took 96 minutes),
 most of it the 671,205-row loan table, the two encoded model matrices and the
 scaled copy the logistic regression needs.
