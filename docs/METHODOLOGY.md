@@ -27,7 +27,10 @@ Kiva-Loans-Microfinance-Analytics/
 │   └── test_readme_numbers.py                # every README number appears in outputs/results.json
 ├── figs/
 │   ├── geo_funding_vs_poverty.png            # Section 5 geospatial/MPI figure
+│   ├── pr_curve.png                          # Section 7.1 precision-recall curve, at-risk class
 │   ├── shap_summary.png                      # Section 7 SHAP summary plot
+│   ├── shap_beeswarm.png                     # Section 7.2 SHAP direction
+│   ├── calibration.png                       # Section 7.5 reliability diagram
 │   └── shortfall_capture.png                 # Section 9.1 shortfall captured by risk ranking
 ├── outputs/
 │   └── results.json                          # every headline number, with package versions and git commit
@@ -64,14 +67,17 @@ than two copies that drift apart.
 
 ## Features
 
-- **Exploratory analysis** across loan amount, sector, country, and borrower gender composition (Section 3).
+- **Exploratory analysis** across loan amount, sector, country, and borrower gender composition, then the outcome itself: the unfunded share by loan term, amount, repayment schedule, borrower group and sector, before any model (Section 3).
 - **Text mining** of the free-text `use` field via TF-IDF, producing coherent per-sector vocabulary (Section 4).
 - **Geospatial join** against Kiva's region-level Multidimensional Poverty Index, with coverage reported and mis-keyed coordinates removed (Section 5).
 - **Leakage-checked feature engineering**: outcome-dependent columns (`funded_time`, `disbursed_time`, `lender_count`, `funded_amount`) explicitly excluded because they aren't knowable at posting time (Section 6).
 - **Censoring-aware target and out-of-time evaluation**: loans whose outcome was not yet known are excluded, and models are scored on loans posted after the training period (Section 6).
-- **Funding-risk classification** (Logistic Regression, Random Forest, LightGBM, and LightGBM with a time trend), chosen on a validation slice and evaluated on minority-class PR-AUC, because the majority-class number looks good regardless of whether the model works (Section 7).
+- **Funding-risk classification** (Logistic Regression, Random Forest, LightGBM, and LightGBM with a time trend), chosen on a validation slice and evaluated on minority-class PR-AUC, because the majority-class number looks good regardless of whether the model works, with the full precision-recall curve (Section 7).
+- **SHAP ranking and direction**: mean |SHAP| ranking plus a beeswarm and banded SHAP values showing which way term and amount push the score (Section 7.2).
+- **Performance by segment**: ROC-AUC, PR-AUC and lift within borrower groups, repayment schedules, sectors and countries (Section 7.4).
+- **Calibration**: isotonic calibration on the validation slice, judged by Brier score and a reliability diagram on the test period (Section 7.5).
 - **Days-to-fund regression** on funded loans (Section 8).
-- **Region-priority synthesis** combining funding-risk and poverty ranks into a relative priority index (Section 9).
+- **Province-priority synthesis** combining funding-risk and poverty ranks into a relative priority index, checked against the actual unfunded share (Section 9).
 - **Results file** with provenance, checked against the README by a test (Section 11).
 
 ## Tech Stack
@@ -167,11 +173,41 @@ https://www.kaggle.com/datasets/kiva/data-science-for-good-kiva-crowdfunding
   posting-time features, with the same date cut-off separating train and test, and is
   compared with a naive forecast that gives every test loan the training-period
   median.
+- **Outcome EDA (Section 3.5):** the settled-loan target is defined in Step 3.6 and
+  examined before any model. The unfunded share rises from 0.3% in the shortest-term
+  sixth of loans (8 months or less) to 15.6% in the longest (over 18 months), and
+  from 0.1% for loans of $225 or less to 14.6% above $1,250, against 6.4% overall.
+  Bullet loans go unfunded 13.7% of the time and irregular schedules 2.2%; all-male
+  loans 14.5%, all-female 3.9%; Housing (11.3%) and Transportation (10.1%) are the
+  riskiest sectors. These are one-variable rates, not adjusted for each other.
+- **Precision-recall curve and SHAP direction (Sections 7.1, 7.2):** the at-risk
+  class reaches 42.9% precision at 25% recall, 32.6% at 50% and 24.4% at 75%. Banded
+  SHAP values show terms of 8 months or less adding +2.23 to the log-odds of funding
+  and loans of $225 or less adding +2.39, while terms over 11 months and amounts over
+  $975 pull the score down; the time trend pushes every test loan towards not
+  funded, because a tree model holds it at its last training level.
+- **Performance by segment (Section 7.4):** ROC-AUC is used to compare segments
+  because PR-AUC and lift depend on each segment's unfunded share (lift can be at
+  most 1 divided by that share). The model ranks worst where risk is highest: 0.850
+  within all-male loans against 0.930 within all-female loans, 0.870 for bullet
+  loans against 0.954 for irregular schedules, and 0.725 in Pakistan and 0.754 in
+  Lebanon, the weakest countries.
+- **Calibration (Section 7.5):** the final model trained on the validation slice, so
+  calibration uses the selection-stage version of the chosen model: isotonic
+  regression maps its validation scores to outcomes and is applied to its test
+  scores. Raw test scores averaged 5.0% (actual 4.6%, Brier 0.0345); calibrated
+  scores averaged 7.8% (Brier 0.0371), because the validation slice had 9.6%
+  unfunded. The final model, same specification trained to a later date, averages
+  22.4% while ranking test loans almost identically (rank correlation 0.959): with a
+  time trend, where training ends moves the score scale.
 - **Synthesis (Section 9):** the chosen model's test-period scores are averaged by
-  region. Because the scores are not calibrated, they are not multiplied by MPI.
-  Each region gets a percentile rank on poverty (higher MPI ranks higher) and on
-  funding risk (lower mean score ranks higher), and the relative priority index is
-  the product of the two: 1 is the poorest and riskiest region in the table.
+  province, using the poverty score from Kiva's region link, for the 154 provinces in
+  42 countries with at least 30 test loans. Because the scores are not calibrated,
+  they are not multiplied by MPI. Each province gets a percentile rank on poverty
+  (higher MPI ranks higher) and on funding risk (lower mean score ranks higher), and
+  the relative priority index is the product of the two: 1 is the poorest and
+  riskiest province in the table. The model's province ranking agrees with the actual
+  unfunded share at a rank correlation of 0.674.
 
 ## Results
 
@@ -213,13 +249,15 @@ were not funded). The validation slice had 9.6% not funded.
   full funding. Reviewing loans riskiest first reaches 57.5% of that shortfall at 5% of
   loans, 75.9% at 10%, 92.9% at 20% and 97.7% at 30%; the loans flagged at the default
   threshold (26,388, or 20.5%) cover 93.2%.
-- **Priority-regions finding:** 57 regions qualify for the priority table (at least 10
-  test loans with a known MPI). The highest relative priority index goes to
-  Timor-Leste / Viqueque (MPI 0.410, index 0.90), then Timor-Leste / Baucau, Nigeria /
-  Kaduna (1,239 test loans, the only large sample near the top), Guatemala / Quiche
-  and Sierra Leone / Bo. Most top regions rest on 14 to 38 test loans and cover only
-  the 7.6% of loans with an MPI match, so the list illustrates the method rather than
-  a reliable targeting list.
+- **Priority-provinces finding:** 154 provinces in 42 countries qualify (at least 30
+  test loans with a linked poverty score). The highest relative priority index goes
+  to Moyamba, Sierra Leone (MPI 0.569, index 0.90, 21.4% of 42 test loans unfunded),
+  then Mopti, Mali (MPI 0.594, 22.6% of 239 unfunded), Bobonaro and Ermera in
+  Timor-Leste (no unfunded test loans among 53 and 47) and Sikasso, Mali. The
+  Timor-Leste entries show the list is a review queue rather than an allocation rule.
+  (Superseded 2026-10-11: the earlier exact-join table of 57 regions, led by
+  Timor-Leste / Viqueque and Baucau, Nigeria / Kaduna and Guatemala / Quiche, covered
+  only the 7.6% of loans with an exact MPI match.)
 
 ## Known Limitations
 
@@ -248,9 +286,16 @@ it ranks third in the SHAP table, behind term and amount, with posting month fou
 A tree model cannot extrapolate the trend past the training period, so the column
 can only hold the latest level steady for test loans.
 
-**Scores are not probabilities.** Balanced class weights move every score towards
-0.5. The scores rank loans and regions, which is how they are used; a probability
-reading would need calibration on later data.
+**Scores are not probabilities, and calibration did not transfer.** Balanced class
+weights move the scores towards 0.5, and with a time trend the score scale also
+shifts with where training ends. Calibration learned on the validation slice
+over-predicted the test period, where the unfunded share halved (Section 7.5).
+The scores rank loans and provinces, which is how they are used.
+
+**Segment comparisons are noisy at the edges.** Segments with fewer than 50 unfunded
+test loans are dropped, but those just above the bar still carry wide uncertainty,
+and lift is not comparable across segments with different unfunded shares; ROC-AUC
+is the comparison used.
 
 **Days-to-fund is truncated in the test period.** Only loans funded by the snapshot
 have a days-to-fund value, and the most recent loans had the least time to fund
@@ -267,11 +312,11 @@ points.
 could not be matched to a region-level MPI score, most likely because
 `kiva_loans.csv`'s free-text `region` field (entered inconsistently by field
 partners) doesn't standardize against the MPI lookup table's `region` field
-well enough for an exact string join. Every MPI-dependent result, the Section 5
-map and correlation, the `MPI` feature in the Section 7 model, and the Section
-9 priority-regions table, describes only that small, non-random subset. Kiva's
-own region-to-province link raises coverage to 70.9% and is used to re-test
-question 2 (Section 5); as a model input it was tested under a rule fixed
+well enough for an exact string join. The results built on the exact join, the
+Section 5.1 correlation and the `MPI` feature in the Section 7 model, describe only
+that small, non-random subset. Kiva's own region-to-province link raises coverage
+to 70.9% and is used to re-test question 2, to draw the Section 5 map and to build
+the Section 9 priority table; as a model input it was tested under a rule fixed
 beforehand (adopt for a validation PR-AUC gain of at least 0.005) and rejected,
 because validation PR-AUC fell from 0.4902 to 0.4880 (Step 7.10).
 
@@ -302,9 +347,8 @@ jupyter nbconvert --to notebook --execute Kiva_Loans_Microfinance_Analytics.ipyn
 ```
 
 The tests take seconds and need nothing. The last recorded run of the notebook
-took 96 minutes end to end on a loaded machine (about 2 GB of memory free at the
-start, another notebook running alongside; an earlier run on a free machine took
-38 minutes) and peaked at 4.6 GB of memory (both written to `outputs/results.json`),
+took 19 minutes end to end and peaked at 5.0 GB of memory (both written to
+`outputs/results.json`; an earlier run on a machine short of memory took 96 minutes),
 most of it the 671,205-row loan table, the two encoded model matrices and the
 scaled copy the logistic regression needs.
 

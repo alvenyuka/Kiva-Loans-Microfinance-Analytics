@@ -48,7 +48,20 @@ a single model scored on the last two windows together, is at the cautious end.
 ![Top features by mean absolute SHAP value: loan term, loan amount, the time trend and posting month lead](figs/shap_summary.png)
 
 **What drives the risk.** Loan structure: term and amount rank well ahead of borrower gender mix, sector and
-country, which points to terms that field partners can adjust. The time trend and posting month come next.
+country, which points to terms that field partners can adjust. The time trend and posting month come next. The
+raw data shows the same before any model: the shortest-term sixth of settled loans go unfunded 0.3% of the time
+and the longest-term sixth 15.6%, against 6.4% overall; by amount, 0.1% for the smallest sixth and 14.6% for the
+largest. Loans to all-male borrowers go unfunded 14.5% of the time, all-female 3.9%.
+
+**Where it is weaker.** Scored within each group by ROC-AUC (which, unlike PR-AUC, does not depend on how many
+loans in the group go unfunded), the model ranks worst where risk is highest: 0.850 within all-male loans against
+0.930 within all-female loans, and 0.725 in Pakistan, its weakest country. A score that is weaker for some
+borrowers needs checking before it decides who gets help.
+
+**Scores rank; they are not yet probabilities.** Calibrating on the validation period, when 9.6% of loans went
+unfunded, over-predicted the test period, when 4.6% did: calibrated scores averaged 7.8% and the Brier score
+worsened from 0.0345 to 0.0371. Probabilities for budgeting would need recalibrating on recent loans; the ranking,
+which the review list uses, is unaffected.
 
 **How long funded loans take.** A days-to-fund regression on funded loans has a mean absolute error of 7.0 days,
 against 8.1 days for a naive forecast that gives every loan the training-period median.
@@ -91,13 +104,17 @@ weak (correlation 0.081; rank correlation 0.121), and the shape is not a line:
 Funding risk is somewhat higher at both ends, not concentrated on the poorest. The link is approximate (Kiva
 assigned it by nearest point), and the comparison is between provinces, not borrowers.
 
-![Loan volume and funding success rate by region on a world map](figs/geo_funding_vs_poverty.png)
+![Share of loans fully funded by poverty-index province on a world map, sized by settled loans](figs/geo_funding_vs_poverty.png)
 
 **It does not help the risk model either.** Swapping the wider poverty score into the model was tested under a
 rule fixed beforehand (adopt only for a clear gain in validation PR-AUC, recorded in `outputs/results.json`); it fell slightly, from 0.4902 to
-0.4880, so the model keeps the exact-join score. Within the exactly matched loans, regions in Timor-Leste,
-Nigeria and Guatemala combine deep poverty with the highest predicted funding risk on a rank-based priority
-index, which shows the method rather than a targeting list.
+0.4880, so the model keeps the exact-join score.
+
+**Where poverty and risk coincide.** Ranking 154 provinces in 42 countries (each with at least 30 test loans) on
+both poverty and the model's average risk puts Moyamba in Sierra Leone (MPI 0.569) and Mopti in Mali (MPI 0.594)
+first; 21.4% and 22.6% of their test loans actually went unfunded. Across all 154, the model's province ranking
+agrees with the actual unfunded share at a rank correlation of 0.674. Some high-ranked provinces had no unfunded
+test loans at all, so the list is a review queue, not an allocation rule.
 
 ## How the answers were built
 
@@ -168,8 +185,8 @@ python -m pytest              # no dataset needed
 jupyter nbconvert --to notebook --execute Kiva_Loans_Microfinance_Analytics.ipynb --output Kiva_Loans_Microfinance_Analytics.ipynb --ExecutePreprocessor.timeout=3600
 ```
 
-The last recorded run took 96 minutes on a loaded machine (about 2 GB of memory free at the start, another
-notebook running alongside) and peaked at 4.6 GB of memory.
+The last recorded run took 19 minutes and peaked at 5.0 GB of memory; on a machine short of memory it has taken
+much longer.
 
 ```
 Kiva_Loans_Microfinance_Analytics.ipynb   the analysis, organised around the two questions, executed end to end
@@ -177,7 +194,8 @@ src/features.py                           leakage guard, funding target, gender 
 src/impact.py                             funding-shortfall capture
 outputs/results.json                      every headline number, package versions, git commit
 tests/                                    tests for the logic the results rest on, and for this README
-figs/                                     shortfall capture, SHAP drivers, funding-vs-poverty map
+figs/                                     shortfall capture, precision-recall curve, SHAP drivers and direction,
+                                          calibration, funding-by-province map
 docs/METHODOLOGY.md                       full method, every result, limitations
 ```
 

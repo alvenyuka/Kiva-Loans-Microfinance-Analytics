@@ -1,10 +1,10 @@
 {
   "provenance": {
-    "run_date_utc": "2026-10-09",
-    "runtime_minutes": 96,
-    "peak_memory_gb": 4.6,
-    "git_commit": "80c3ed824a78fd86e8ce6b9ec9b60316badbd9b4",
-    "uncommitted_code_changes": true,
+    "run_date_utc": "2026-10-11",
+    "runtime_minutes": 19,
+    "peak_memory_gb": 5.0,
+    "git_commit": "c431b0938d10eec1ba4d25fb8662eb8d9e328732",
+    "uncommitted_code_changes": false,
     "python": "3.13.9",
     "packages": {
       "numpy": "2.4.6",
@@ -58,6 +58,53 @@
     },
     "feature_columns": 306
   },
+  "outcome_eda": {
+    "settled_not_funded_share": 0.06365072401535926,
+    "not_funded_by_term_band": {
+      "(0.999, 8.0]": 0.0034012637331359936,
+      "(8.0, 9.0]": 0.0473590828442746,
+      "(9.0, 13.0]": 0.05832909040562389,
+      "(13.0, 14.0]": 0.07943126537818598,
+      "(14.0, 18.0]": 0.09571592210767468,
+      "(18.0, 158.0]": 0.15583743204763137
+    },
+    "not_funded_by_amount_band": {
+      "(24.999, 225.0]": 0.0013441166419865588,
+      "(225.0, 325.0]": 0.01195157853109827,
+      "(325.0, 500.0]": 0.0418267494171346,
+      "(500.0, 750.0]": 0.06845718021355415,
+      "(750.0, 1250.0]": 0.1263728274672121,
+      "(1250.0, 100000.0]": 0.14563152761601758
+    },
+    "not_funded_by_group": {
+      "repayment_interval": {
+        "bullet": 0.13662044170518747,
+        "monthly": 0.08024631379503,
+        "irregular": 0.02154655870445344
+      },
+      "borrower_group": {
+        "unknown": 0.1590963139120095,
+        "all male": 0.1450274068130863,
+        "mixed": 0.0694504820108932,
+        "all female": 0.039140923549881516
+      },
+      "sector": {
+        "Housing": 0.11280817056990342,
+        "Transportation": 0.1013707790036777,
+        "Clothing": 0.0831222292590247,
+        "Retail": 0.07672523576071848,
+        "Services": 0.07581401766004416,
+        "Agriculture": 0.06461458273006312,
+        "Health": 0.05591766723842195,
+        "Food": 0.05130601977459094,
+        "Construction": 0.044337429425440056,
+        "Personal Use": 0.03479567655048841,
+        "Education": 0.02179329590379057,
+        "Arts": 0.008691834942932396,
+        "Manufacturing": 0.0020073603211776514
+      }
+    }
+  },
   "classification": {
     "candidates": {
       "Logistic Regression": {
@@ -102,6 +149,11 @@
       "sector_Arts": 0.07604432619614508,
       "country_Kenya": 0.07055166610647706,
       "sector_Food": 0.06618679147254317
+    },
+    "at_risk_precision_at_recall": {
+      "0.25": 0.4287769784172662,
+      "0.50": 0.3255026223776224,
+      "0.75": 0.24410222804718218
     }
   },
   "regional_poverty": {
@@ -124,7 +176,8 @@
       0.9615364391628983,
       0.9577214547300482,
       0.930036003069114
-    ]
+    ],
+    "provinces_mapped": 230
   },
   "walk_forward": {
     "model": "LightGBM + time trend",
@@ -184,48 +237,500 @@
     "baseline_train_median_days": 10.240393518518518,
     "r2_model": 0.24752168883691406
   },
-  "priority_regions": {
-    "regions": 57,
-    "top5": [
+  "shap_direction": {
+    "term_in_months": {
+      "(3.999, 8.0]": 2.2297682040314855,
+      "(8.0, 11.0]": -0.4862556759382265,
+      "(11.0, 14.0]": -1.3379257663528519,
+      "(14.0, 15.0]": -1.4464937586003763,
+      "(15.0, 122.0]": -1.4995773982942433
+    },
+    "loan_amount": {
+      "(49.999, 225.0]": 2.3892166000502777,
+      "(225.0, 350.0]": 1.1852964909137644,
+      "(350.0, 525.0]": 0.1821720742294689,
+      "(525.0, 975.0]": -0.7337986542000646,
+      "(975.0, 16975.0]": -1.7233300006699614
+    }
+  },
+  "segments": {
+    "borrower_group": [
       {
-        "country": "Timor-Leste",
-        "region": "Viqueque",
-        "n_test_loans": 14,
-        "MPI": 0.41,
-        "mean_model_score": 0.4754708556540216,
-        "priority_index": 0.8975069252077561
+        "borrower_group": "unknown",
+        "test_loans": 147,
+        "unfunded_share": 0.564625850340136,
+        "roc_auc": 0.8194653614457832,
+        "pr_auc_at_risk": 0.8415401129325228,
+        "lift_over_random": 1.4904385132660345,
+        "max_lift": 1.7710843373493976
       },
       {
-        "country": "Timor-Leste",
-        "region": "Baucau",
-        "n_test_loans": 38,
-        "MPI": 0.357,
-        "mean_model_score": 0.5339809442921294,
-        "priority_index": 0.8156355801785165
+        "borrower_group": "all male",
+        "test_loans": 22521,
+        "unfunded_share": 0.12046534345721771,
+        "roc_auc": 0.8499208509319396,
+        "pr_auc_at_risk": 0.4342615076980846,
+        "lift_over_random": 3.604866721293241,
+        "max_lift": 8.301142646516771
       },
       {
-        "country": "Nigeria",
-        "region": "Kaduna",
-        "n_test_loans": 1239,
-        "MPI": 0.311,
-        "mean_model_score": 0.6539745710256006,
-        "priority_index": 0.5881809787626963
+        "borrower_group": "mixed",
+        "test_loans": 11434,
+        "unfunded_share": 0.07670106699317825,
+        "roc_auc": 0.8679999511799387,
+        "pr_auc_at_risk": 0.30706946598063284,
+        "lift_over_random": 4.003457553047384,
+        "max_lift": 13.037628278221208
+      },
+      {
+        "borrower_group": "all female",
+        "test_loans": 94915,
+        "unfunded_share": 0.024063635884738976,
+        "roc_auc": 0.9304755643926323,
+        "pr_auc_at_risk": 0.30771658819787423,
+        "lift_over_random": 12.78761820000054,
+        "max_lift": 41.55647985989492
+      }
+    ],
+    "repayment_interval": [
+      {
+        "repayment_interval": "bullet",
+        "test_loans": 12396,
+        "unfunded_share": 0.11907066795740562,
+        "roc_auc": 0.8698930134905745,
+        "pr_auc_at_risk": 0.5525998710044201,
+        "lift_over_random": 4.640940380061512,
+        "max_lift": 8.398373983739837
+      },
+      {
+        "repayment_interval": "monthly",
+        "test_loans": 68974,
+        "unfunded_share": 0.05518021283382144,
+        "roc_auc": 0.8965520632940429,
+        "pr_auc_at_risk": 0.3101712392265888,
+        "lift_over_random": 5.621059131480488,
+        "max_lift": 18.122438255386232
+      },
+      {
+        "repayment_interval": "irregular",
+        "test_loans": 47647,
+        "unfunded_share": 0.014166684156400194,
+        "roc_auc": 0.9543068683944098,
+        "pr_auc_at_risk": 0.20679670181211188,
+        "lift_over_random": 14.59739622406177,
+        "max_lift": 70.58814814814815
+      }
+    ],
+    "sector": [
+      {
+        "sector": "Transportation",
+        "test_loans": 2691,
+        "unfunded_share": 0.08769973987365291,
+        "roc_auc": 0.8624029134592149,
+        "pr_auc_at_risk": 0.35559678806597866,
+        "lift_over_random": 4.054707443582833,
+        "max_lift": 11.402542372881356
+      },
+      {
+        "sector": "Agriculture",
+        "test_loans": 34769,
+        "unfunded_share": 0.05464638039633007,
+        "roc_auc": 0.8704213696796373,
+        "pr_auc_at_risk": 0.2588129247207439,
+        "lift_over_random": 4.736140305060813,
+        "max_lift": 18.299473684210525
+      },
+      {
+        "sector": "Services",
+        "test_loans": 8862,
+        "unfunded_share": 0.0645452493793726,
+        "roc_auc": 0.8930005609589445,
+        "pr_auc_at_risk": 0.5671403706691164,
+        "lift_over_random": 8.786709728793198,
+        "max_lift": 15.493006993006993
+      },
+      {
+        "sector": "Clothing",
+        "test_loans": 5694,
+        "unfunded_share": 0.06252195293291184,
+        "roc_auc": 0.9103591590504376,
+        "pr_auc_at_risk": 0.4235589831159986,
+        "lift_over_random": 6.774564185007011,
+        "max_lift": 15.99438202247191
+      },
+      {
+        "sector": "Construction",
+        "test_loans": 1083,
+        "unfunded_share": 0.050784856879039705,
+        "roc_auc": 0.9162009197028651,
+        "pr_auc_at_risk": 0.4084022700262143,
+        "lift_over_random": 8.041811971607093,
+        "max_lift": 19.69090909090909
+      },
+      {
+        "sector": "Health",
+        "test_loans": 2116,
+        "unfunded_share": 0.03780718336483932,
+        "roc_auc": 0.9239685658153243,
+        "pr_auc_at_risk": 0.34906369973668744,
+        "lift_over_random": 9.232734858035382,
+        "max_lift": 26.45
+      },
+      {
+        "sector": "Food",
+        "test_loans": 24940,
+        "unfunded_share": 0.03905372894947875,
+        "roc_auc": 0.9328307504762479,
+        "pr_auc_at_risk": 0.37759064410448195,
+        "lift_over_random": 9.668491441443306,
+        "max_lift": 25.60574948665298
+      },
+      {
+        "sector": "Retail",
+        "test_loans": 21472,
+        "unfunded_share": 0.044709388971684055,
+        "roc_auc": 0.9396693602119084,
+        "pr_auc_at_risk": 0.4023108936729286,
+        "lift_over_random": 8.998353655151169,
+        "max_lift": 22.366666666666667
+      },
+      {
+        "sector": "Housing",
+        "test_loans": 5985,
+        "unfunded_share": 0.04828738512949039,
+        "roc_auc": 0.9424789082850591,
+        "pr_auc_at_risk": 0.3895388820888262,
+        "lift_over_random": 8.067094149832611,
+        "max_lift": 20.709342560553633
+      },
+      {
+        "sector": "Education",
+        "test_loans": 6679,
+        "unfunded_share": 0.041024105405000746,
+        "roc_auc": 0.9447434998888871,
+        "pr_auc_at_risk": 0.45444023246864745,
+        "lift_over_random": 11.077395301671885,
+        "max_lift": 24.375912408759124
+      },
+      {
+        "sector": "Personal Use",
+        "test_loans": 10756,
+        "unfunded_share": 0.018687244328746747,
+        "roc_auc": 0.9778176856126756,
+        "pr_auc_at_risk": 0.3597168721209617,
+        "lift_over_random": 19.249326748920716,
+        "max_lift": 53.51243781094527
+      }
+    ],
+    "country": [
+      {
+        "country": "Pakistan",
+        "test_loans": 6731,
+        "unfunded_share": 0.036101619373050065,
+        "roc_auc": 0.7254399384999468,
+        "pr_auc_at_risk": 0.08361815709068232,
+        "lift_over_random": 2.3161885406476657,
+        "max_lift": 27.699588477366255
+      },
+      {
+        "country": "Lebanon",
+        "test_loans": 1957,
+        "unfunded_share": 0.026571282575370465,
+        "roc_auc": 0.7536442560064607,
+        "pr_auc_at_risk": 0.07481098815649823,
+        "lift_over_random": 2.8154827658128276,
+        "max_lift": 37.63461538461539
+      },
+      {
+        "country": "Palestine",
+        "test_loans": 1871,
+        "unfunded_share": 0.21325494388027794,
+        "roc_auc": 0.7670713808978968,
+        "pr_auc_at_risk": 0.39066181803306577,
+        "lift_over_random": 1.8319004048618195,
+        "max_lift": 4.68922305764411
+      },
+      {
+        "country": "Bolivia",
+        "test_loans": 776,
+        "unfunded_share": 0.15335051546391754,
+        "roc_auc": 0.7812951664684138,
+        "pr_auc_at_risk": 0.39341082973676605,
+        "lift_over_random": 2.5654353266868104,
+        "max_lift": 6.5210084033613445
+      },
+      {
+        "country": "Armenia",
+        "test_loans": 1537,
+        "unfunded_share": 0.23227065712426806,
+        "roc_auc": 0.7856133979015335,
+        "pr_auc_at_risk": 0.4835042631973657,
+        "lift_over_random": 2.0816416037376784,
+        "max_lift": 4.30532212885154
+      },
+      {
+        "country": "Myanmar (Burma)",
+        "test_loans": 986,
+        "unfunded_share": 0.10446247464503043,
+        "roc_auc": 0.7932522622568693,
+        "pr_auc_at_risk": 0.24639568960075994,
+        "lift_over_random": 2.3587004849160125,
+        "max_lift": 9.572815533980583
+      },
+      {
+        "country": "Kyrgyzstan",
+        "test_loans": 897,
+        "unfunded_share": 0.07023411371237458,
+        "roc_auc": 0.7969814624490883,
+        "pr_auc_at_risk": 0.22430310850292942,
+        "lift_over_random": 3.1936490210655193,
+        "max_lift": 14.238095238095239
+      },
+      {
+        "country": "Mali",
+        "test_loans": 592,
+        "unfunded_share": 0.23141891891891891,
+        "roc_auc": 0.8015400657736423,
+        "pr_auc_at_risk": 0.4342819831483449,
+        "lift_over_random": 1.8766053578381034,
+        "max_lift": 4.321167883211679
+      },
+      {
+        "country": "Honduras",
+        "test_loans": 1128,
+        "unfunded_share": 0.07801418439716312,
+        "roc_auc": 0.8305233828671328,
+        "pr_auc_at_risk": 0.23959524952960987,
+        "lift_over_random": 3.071175471243181,
+        "max_lift": 12.818181818181818
+      },
+      {
+        "country": "El Salvador",
+        "test_loans": 5436,
+        "unfunded_share": 0.09694628403237675,
+        "roc_auc": 0.8373055646929718,
+        "pr_auc_at_risk": 0.3041123808607736,
+        "lift_over_random": 3.136916323262173,
+        "max_lift": 10.314990512333965
       },
       {
         "country": "Guatemala",
-        "region": "Quiche",
-        "n_test_loans": 20,
-        "MPI": 0.193,
-        "mean_model_score": 0.5520414076894793,
-        "priority_index": 0.5806401969836873
+        "test_loans": 1342,
+        "unfunded_share": 0.06110283159463487,
+        "roc_auc": 0.8457123499806426,
+        "pr_auc_at_risk": 0.3122121500198072,
+        "lift_over_random": 5.109618357641234,
+        "max_lift": 16.365853658536587
+      },
+      {
+        "country": "Nicaragua",
+        "test_loans": 1634,
+        "unfunded_share": 0.05385556915544676,
+        "roc_auc": 0.8590166705868516,
+        "pr_auc_at_risk": 0.23060058597511127,
+        "lift_over_random": 4.281833607765134,
+        "max_lift": 18.568181818181817
+      },
+      {
+        "country": "Kenya",
+        "test_loans": 14915,
+        "unfunded_share": 0.056520281595709015,
+        "roc_auc": 0.8776607358057561,
+        "pr_auc_at_risk": 0.2833536760822603,
+        "lift_over_random": 5.013309701977358,
+        "max_lift": 17.69276393831554
+      },
+      {
+        "country": "Colombia",
+        "test_loans": 3435,
+        "unfunded_share": 0.08034934497816594,
+        "roc_auc": 0.8786352312922361,
+        "pr_auc_at_risk": 0.30837697988865925,
+        "lift_over_random": 3.837952630136031,
+        "max_lift": 12.445652173913043
+      },
+      {
+        "country": "Cameroon",
+        "test_loans": 1073,
+        "unfunded_share": 0.08201304753028892,
+        "roc_auc": 0.8818931702814952,
+        "pr_auc_at_risk": 0.37072060067002466,
+        "lift_over_random": 4.520263687715187,
+        "max_lift": 12.193181818181817
+      },
+      {
+        "country": "Ecuador",
+        "test_loans": 3154,
+        "unfunded_share": 0.04185161699429296,
+        "roc_auc": 0.8886448869903535,
+        "pr_auc_at_risk": 0.21822764477998188,
+        "lift_over_random": 5.214318118455021,
+        "max_lift": 23.893939393939394
+      },
+      {
+        "country": "Uganda",
+        "test_loans": 2544,
+        "unfunded_share": 0.04323899371069182,
+        "roc_auc": 0.9015126615373124,
+        "pr_auc_at_risk": 0.25301503194204517,
+        "lift_over_random": 5.851547647823299,
+        "max_lift": 23.12727272727273
+      },
+      {
+        "country": "Tajikistan",
+        "test_loans": 5033,
+        "unfunded_share": 0.08106497119014504,
+        "roc_auc": 0.902763381028087,
+        "pr_auc_at_risk": 0.44714878308780237,
+        "lift_over_random": 5.515930944315954,
+        "max_lift": 12.33578431372549
+      },
+      {
+        "country": "Nigeria",
+        "test_loans": 1259,
+        "unfunded_share": 0.08260524225575853,
+        "roc_auc": 0.9051448551448551,
+        "pr_auc_at_risk": 0.34516420821277394,
+        "lift_over_random": 4.178478251345023,
+        "max_lift": 12.105769230769232
+      },
+      {
+        "country": "Mozambique",
+        "test_loans": 677,
+        "unfunded_share": 0.07976366322008863,
+        "roc_auc": 0.9083734617442483,
+        "pr_auc_at_risk": 0.4101293086978798,
+        "lift_over_random": 5.141806333119715,
+        "max_lift": 12.537037037037036
+      },
+      {
+        "country": "Rwanda",
+        "test_loans": 1159,
+        "unfunded_share": 0.1915444348576359,
+        "roc_auc": 0.9123544569115541,
+        "pr_auc_at_risk": 0.6199848898955707,
+        "lift_over_random": 3.2367679612115605,
+        "max_lift": 5.2207207207207205
       },
       {
         "country": "Sierra Leone",
-        "region": "Bo",
-        "n_test_loans": 20,
-        "MPI": 0.449,
-        "mean_model_score": 0.7097161954193069,
-        "priority_index": 0.4909202831640505
+        "test_loans": 1437,
+        "unfunded_share": 0.0848990953375087,
+        "roc_auc": 0.9266222028298946,
+        "pr_auc_at_risk": 0.5431537210278087,
+        "lift_over_random": 6.397638500958697,
+        "max_lift": 11.778688524590164
+      },
+      {
+        "country": "Vietnam",
+        "test_loans": 2254,
+        "unfunded_share": 0.03460514640638864,
+        "roc_auc": 0.9338205835218703,
+        "pr_auc_at_risk": 0.2377279063872816,
+        "lift_over_random": 6.869726935858113,
+        "max_lift": 28.897435897435898
+      },
+      {
+        "country": "Cambodia",
+        "test_loans": 9733,
+        "unfunded_share": 0.02270625706359807,
+        "roc_auc": 0.9448957544459202,
+        "pr_auc_at_risk": 0.24973150722961243,
+        "lift_over_random": 10.998356379483338,
+        "max_lift": 44.040723981900456
+      },
+      {
+        "country": "The Democratic Republic of the Congo",
+        "test_loans": 941,
+        "unfunded_share": 0.08501594048884166,
+        "roc_auc": 0.9553861788617886,
+        "pr_auc_at_risk": 0.6745189040702377,
+        "lift_over_random": 7.934028609126171,
+        "max_lift": 11.7625
+      },
+      {
+        "country": "Philippines",
+        "test_loans": 30643,
+        "unfunded_share": 0.0033612896909571517,
+        "roc_auc": 0.9780739568034283,
+        "pr_auc_at_risk": 0.11871201616481351,
+        "lift_over_random": 35.31740108095515,
+        "max_lift": 297.50485436893206
+      },
+      {
+        "country": "United States",
+        "test_loans": 1293,
+        "unfunded_share": 0.39211136890951276,
+        "roc_auc": 0.9857867714591143,
+        "pr_auc_at_risk": 0.9626990492704953,
+        "lift_over_random": 2.4551673978436894,
+        "max_lift": 2.5502958579881656
+      }
+    ]
+  },
+  "calibration": {
+    "brier_constant": 0.04654593787827405,
+    "brier_raw": 0.0344695143430209,
+    "brier_calibrated": 0.037125423420821736,
+    "mean_predicted_raw": 0.04958125168518108,
+    "mean_predicted_calibrated": 0.07802483308236435,
+    "actual_unfunded_share": 0.0461722098638164,
+    "pr_auc_raw": 0.39887704880523694,
+    "pr_auc_calibrated": 0.3844595842422877,
+    "mean_predicted_final_model": 0.22369398260149204,
+    "rank_corr_selection_vs_final": 0.9588434961003575
+  },
+  "priority_regions": {
+    "poverty_score": "Kiva region link (province)",
+    "min_test_loans": 30,
+    "provinces": 154,
+    "countries": 42,
+    "risk_vs_actual_spearman": 0.6737649340821663,
+    "top5": [
+      {
+        "country": "Sierra Leone",
+        "province": "Moyamba, Sierra Leone",
+        "n_test_loans": 42,
+        "MPI": 0.569,
+        "mean_model_score": 0.47398127724719286,
+        "actual_not_funded_share": 0.21428571428571427,
+        "priority_index": 0.9036937088885141
+      },
+      {
+        "country": "Mali",
+        "province": "Mopti, Mali",
+        "n_test_loans": 239,
+        "MPI": 0.594,
+        "mean_model_score": 0.4873241499859219,
+        "actual_not_funded_share": 0.22594142259414227,
+        "priority_index": 0.890285039635689
+      },
+      {
+        "country": "Timor-Leste",
+        "province": "Bobonaro, Timor-Leste",
+        "n_test_loans": 53,
+        "MPI": 0.406,
+        "mean_model_score": 0.452351241408424,
+        "actual_not_funded_share": 0.0,
+        "priority_index": 0.8437341878900321
+      },
+      {
+        "country": "Timor-Leste",
+        "province": "Ermera, Timor-Leste",
+        "n_test_loans": 47,
+        "MPI": 0.4970000000000001,
+        "mean_model_score": 0.550382632687312,
+        "actual_not_funded_share": 0.0,
+        "priority_index": 0.7941474110305279
+      },
+      {
+        "country": "Mali",
+        "province": "Sikasso, Mali",
+        "n_test_loans": 149,
+        "MPI": 0.484,
+        "mean_model_score": 0.5961441854371669,
+        "actual_not_funded_share": 0.21476510067114093,
+        "priority_index": 0.7311519649181987
       }
     ]
   },
