@@ -165,7 +165,6 @@ regions, with a baseline before every model and checks that stop the run at any 
 pip install -r requirements.txt
 python -m pytest              # no dataset needed
 # put kiva_loans.csv, kiva_mpi_region_locations.csv and loan_themes_by_region.csv in ./data
-python build_notebook.py
 jupyter nbconvert --to notebook --execute Kiva_Loans_Microfinance_Analytics.ipynb --output Kiva_Loans_Microfinance_Analytics.ipynb --ExecutePreprocessor.timeout=3600
 ```
 
@@ -174,7 +173,6 @@ notebook running alongside) and peaked at 4.6 GB of memory.
 
 ```
 Kiva_Loans_Microfinance_Analytics.ipynb   the analysis, organised around the two questions, executed end to end
-build_notebook.py                         generates the notebook (edit this, not the .ipynb)
 src/features.py                           leakage guard, funding target, gender parsing
 src/impact.py                             funding-shortfall capture
 outputs/results.json                      every headline number, package versions, git commit

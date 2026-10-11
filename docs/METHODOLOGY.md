@@ -18,7 +18,6 @@ Funding-risk model on 671,205 Kiva microloans: which loans are at risk of not be
 ```
 Kiva-Loans-Microfinance-Analytics/
 ├── Kiva_Loans_Microfinance_Analytics.ipynb   # the notebook, run end to end
-├── build_notebook.py                         # generates the notebook, edit this not the .ipynb
 ├── src/
 │   ├── features.py                           # leakage guard, funding target, gender parsing
 │   └── impact.py                             # funding-shortfall capture (Section 9.1)
@@ -41,8 +40,9 @@ Kiva-Loans-Microfinance-Analytics/
 └── README.md
 ```
 
-The notebook is generated, so `build_notebook.py` is the file to edit, never the
-`.ipynb`. It is written to be followed and recreated, and is organised around
+The notebook is the source: edit it directly, then restart the kernel and run every
+cell so the outputs, figures and results file match the code. It is written to be
+followed and recreated, and is organised around
 the project's two questions: what the data can support (sections 1 to 6), which
 loans are at risk (7 and 8), whether that risk falls on the poorest regions and
 what to do about it (9), then limits and the results record (10 and 11). Each
@@ -59,7 +59,7 @@ than two copies that drift apart.
 1. Download the three source CSVs (see Dataset below) into `./data`.
 2. `pip install -r requirements.txt`
 3. `python -m pytest` to check the leakage guard and feature logic. This needs no data and takes a few seconds.
-4. Run `build_notebook.py`, then execute the generated notebook end to end (full commands under Running it below). Note that step 4 overwrites the committed notebook with a fresh, output-free copy, so its stored outputs are gone until you execute it.
+4. Execute the notebook end to end (full command under Running it below). This overwrites the stored outputs with the new run's.
 5. Section 7 (funding-risk model + SHAP) has the headline result; Section 9 has the region-priority synthesis; `outputs/results.json` holds every headline number with the package versions and git commit of the run.
 
 ## Features
@@ -297,7 +297,6 @@ pip install -r requirements.txt
 python -m pytest
 
 # the notebook
-python build_notebook.py
 jupyter nbconvert --to notebook --execute Kiva_Loans_Microfinance_Analytics.ipynb \
   --output Kiva_Loans_Microfinance_Analytics.ipynb --ExecutePreprocessor.timeout=3600
 ```
