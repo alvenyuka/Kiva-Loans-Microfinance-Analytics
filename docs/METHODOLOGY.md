@@ -247,7 +247,7 @@ were not funded). The validation slice had 9.6% not funded.
   0.188, `sector_Education` 0.160, `sector_Retail` 0.150, `country_Cambodia` 0.090,
   `sector_Arts` 0.076, `country_Kenya` 0.071, `sector_Food` 0.066.
 - **Days-to-fund regression:** MAE 7.04 days against 8.08 days for the naive
-  training-median forecast (10.2 days), RÂ² = 0.248, on 604,019 settled funded loans
+  training-median forecast (10.2 days), R² = 0.248, on 604,019 settled funded loans
   (123,059 in the test period; mean days-to-fund 14.7, standard deviation 14.5).
   Scored out of time, the regression explains a quarter of the variance, so it gives
   a rough expected fundraising time rather than a forecast to plan around.
