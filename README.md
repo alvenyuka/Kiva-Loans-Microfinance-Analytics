@@ -207,4 +207,4 @@ The full method, every result and the tests are described in [`docs/METHODOLOGY.
 
 MIT. See [`LICENSE`](LICENSE). Data: [Data Science for Good: Kiva Crowdfunding](https://www.kaggle.com/datasets/kiva/data-science-for-good-kiva-crowdfunding) (Kaggle).
 
-Alven Yuka Â· [LinkedIn](https://www.linkedin.com/in/alven-yuka-610b78174/) Â· [Email](mailto:alvenyuka2@gmail.com)
+Alven Yuka · [LinkedIn](https://www.linkedin.com/in/alven-yuka-610b78174/) · [Email](mailto:alvenyuka2@gmail.com)
