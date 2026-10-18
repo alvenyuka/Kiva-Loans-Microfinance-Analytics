@@ -1,10 +1,12 @@
-# Kiva Loans Microfinance Analytics: flagging microloans at risk of going unfunded
+# Kiva Microloan Funding Risk
 
-**A model that warns, on the day a microloan is posted, that it may never be fully funded, so a platform can
-step in early. Trained on 671,205 Kiva loans and scored once on the most recent 129,017, reviewing just the 10%
-it ranks riskiest would reach 76% of the $5.8M that went unfunded. LightGBM with a time trend, PR-AUC 0.374
-against a 4.6% base rate, and a test suite that fails if this page quotes a number the analysis did not
-produce.**
+On posting day, flags the 10% of loans that hold 76% of the unfunded dollars.
+
+| At a glance | |
+|---|---|
+| **Who decides** | A lending platform or impact funder choosing which new microloans to feature or back with matching funds. |
+| **Result** | Reviewing the 10% of new loans ranked riskiest reaches 76% of the $5.8M that went unfunded. |
+| **Proof** | 671,205 Kiva loans, scored once on the most recent 129,017; LightGBM at PR-AUC 0.374 against a 4.6% base rate; a test that fails if this page quotes a number the analysis did not produce. |
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3776AB?style=flat&logo=python&logoColor=white)](#how-to-run)
@@ -68,6 +70,8 @@ The exact Python and package versions of the published run are recorded under `p
 `outputs/results.json`, with the run date, runtime, peak memory and git commit.
 
 ## Results
+
+A model that warns, on the day a microloan is posted, that it may never be fully funded, so a platform can step in early. Trained on 671,205 Kiva loans and scored once on the most recent 129,017, reviewing just the 10% it ranks riskiest would reach 76% of the $5.8M that went unfunded. LightGBM with a time trend, PR-AUC 0.374 against a 4.6% base rate, and a test suite that fails if this page quotes a number the analysis did not produce.
 
 - 671,205 loans; 645,083 with a settled outcome, 6.4% of them not fully funded.
 - Training period of 516,066 loans; test period of 129,017 loans, 5,957 of them not funded, scored once.
