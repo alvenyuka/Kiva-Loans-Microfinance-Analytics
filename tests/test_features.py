@@ -208,14 +208,11 @@ def test_add_borrower_features_does_not_mutate_the_caller():
     pd.testing.assert_frame_equal(df, before)
 
 
-def test_vectorised_counts_match_the_scalar_parser():
-    """add_borrower_features counts in bulk; parse_gender_counts is the rule.
-    The two must agree on every edge case, including labels that merely contain
-    the word "male"."""
+def test_repeated_index_does_not_misalign_counts():
+    """The caller's index can repeat and be unsorted. Counts must stay row by row,
+    including labels that merely contain the word "male"."""
     cells = ["female", "female, female, male", "  Female ,MALE,  male  ", np.nan, None,
              "female, nonbinary, male", "", "male-ish, female", ",,male"]
     out = add_borrower_features(pd.DataFrame({"borrower_genders": cells}, index=[10, 3, 3, 7, 8, 1, 2, 5, 4]))
-    for i, cell in enumerate(cells):
-        expected = parse_gender_counts(cell)
-        assert out["n_male"].iloc[i] == expected["n_male"], cell
-        assert out["n_female"].iloc[i] == expected["n_female"], cell
+    assert out["n_male"].tolist() == [0, 1, 2, 0, 0, 1, 0, 0, 1]
+    assert out["n_female"].tolist() == [1, 2, 1, 0, 0, 1, 0, 1, 0]

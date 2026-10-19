@@ -26,3 +26,10 @@ def test_reviewing_everything_covers_everything():
     risk = np.array([0.2, 0.4])
     row = shortfall_capture(risk, [100, 100], [0, 50], review_shares=(1.0,)).iloc[0]
     assert row["shortfall_covered_pct"] == pytest.approx(1.0)
+
+
+def test_zero_shortfall_gives_zero_shares_not_an_error():
+    risk = np.array([0.2, 0.4])
+    row = shortfall_capture(risk, [100, 100], [100, 100], review_shares=(0.5,)).iloc[0]
+    assert row["shortfall_covered_pct"] == 0.0
+    assert row["unfunded_loans_covered_pct"] == 0.0
