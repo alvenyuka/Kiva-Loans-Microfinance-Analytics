@@ -17,30 +17,30 @@ Funding-risk model on 671,205 Kiva microloans: which loans are at risk of not be
 
 ```
 Kiva-Loans-Microfinance-Analytics/
-â”œâ”€â”€ Kiva_Loans_Microfinance_Analytics.ipynb   # the notebook, run end to end
-â”œâ”€â”€ src/
-â”‚   â”œâ”€â”€ features.py                           # leakage guard, funding target, gender parsing
-â”‚   â””â”€â”€ impact.py                             # funding-shortfall capture (Section 12)
-â”œâ”€â”€ tests/
-â”‚   â”œâ”€â”€ test_features.py                      # leakage guard, target, gender parsing; no dataset needed
-â”‚   â”œâ”€â”€ test_impact.py                        # shortfall arithmetic behind the business-impact table
-â”‚   â””â”€â”€ test_readme_numbers.py                # every README number appears in outputs/results.json
-â”œâ”€â”€ figs/
-â”‚   â”œâ”€â”€ geo_funding_vs_poverty.png            # Step 5.8 province map
-â”‚   â”œâ”€â”€ pr_curve.png                          # Step 9.3 precision-recall curve, at-risk class
-â”‚   â”œâ”€â”€ shap_summary.png                      # Step 11.2 SHAP summary plot
-â”‚   â”œâ”€â”€ shap_beeswarm.png                     # Step 11.3 SHAP direction
-â”‚   â”œâ”€â”€ calibration.png                       # Step 9.7 reliability diagram
-â”‚   â””â”€â”€ shortfall_capture.png                 # Step 12.4 shortfall captured by risk ranking
-â”œâ”€â”€ outputs/
-â”‚   â””â”€â”€ results.json                          # every headline number, with package versions and git commit
-â”œâ”€â”€ docs/METHODOLOGY.md                       # this file
-â”œâ”€â”€ .github/workflows/ci.yml                  # runs the tests on every push
-â”œâ”€â”€ conftest.py                               # puts src/ on sys.path for the tests
-â”œâ”€â”€ pytest.ini
-â”œâ”€â”€ requirements.txt
-â”œâ”€â”€ LICENSE
-â””â”€â”€ README.md
+├── Kiva_Loans_Microfinance_Analytics.ipynb   # the notebook, run end to end
+├── src/
+│   ├── features.py                           # leakage guard, funding target, gender parsing
+│   └── impact.py                             # funding-shortfall capture (Section 12)
+├── tests/
+│   ├── test_features.py                      # leakage guard, target, gender parsing; no dataset needed
+│   ├── test_impact.py                        # shortfall arithmetic behind the business-impact table
+│   └── test_readme_numbers.py                # every README number appears in outputs/results.json
+├── figs/
+│   ├── geo_funding_vs_poverty.png            # Step 5.8 province map
+│   ├── pr_curve.png                          # Step 9.3 precision-recall curve, at-risk class
+│   ├── shap_summary.png                      # Step 11.2 SHAP summary plot
+│   ├── shap_beeswarm.png                     # Step 11.3 SHAP direction
+│   ├── calibration.png                       # Step 9.7 reliability diagram
+│   └── shortfall_capture.png                 # Step 12.4 shortfall captured by risk ranking
+├── outputs/
+│   └── results.json                          # every headline number, with package versions and git commit
+├── docs/METHODOLOGY.md                       # this file
+├── .github/workflows/ci.yml                  # runs the tests on every push
+├── conftest.py                               # puts src/ on sys.path for the tests
+├── pytest.ini
+├── requirements.txt
+├── LICENSE
+└── README.md
 ```
 
 The notebook is the source: edit it directly, then restart the kernel and run every
@@ -125,9 +125,9 @@ https://www.kaggle.com/datasets/kiva/data-science-for-good-kiva-crowdfunding
   of the 892 located regions are flagged as mis-keyed in the upstream file: a region
   whose latitude or longitude sits more than five robust standard deviations (and at
   least 10 degrees) from its country's median is dropped from the map, for example
-  Brazil / RondÃ´nia at -17.8, 31.0, which is in Zimbabwe. Their MPI values, which
+  Brazil / Rondônia at -17.8, 31.0, which is in Zimbabwe. Their MPI values, which
   the model uses, are kept. The same file stores some names mis-encoded upstream
-  ("MaranhÃ°o", "RondÃ°nia" for MaranhÃ£o and RondÃ´nia); the file is valid UTF-8, so
+  ("Maranhðo", "Rondðnia" for Maranhão and Rondônia); the file is valid UTF-8, so
   this is a defect in the source, and the names are printed as stored.
 - **Does funding risk fall hardest on the poorest regions? (Steps 5.3 and 5.4):** across the
   75 regions with at least 20 settled loans and a known MPI (48,590 loans, 7.5% of

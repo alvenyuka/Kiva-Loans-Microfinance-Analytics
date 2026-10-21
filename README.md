@@ -22,21 +22,23 @@ The data is the public Kiva dataset on Kaggle: 671,205 loans posted up to 26 Jul
 
 ## Results
 
-I trained on the earlier loans and scored the most recent 129,017, which the model never saw while I was building
-it. All figures are in `outputs/results.json`.
+I trained on the earlier loans and scored the most recent 129,017, which I kept out of training and out of the
+choice of model. All figures are in `outputs/results.json`.
 
 - **The riskiest 10% of loans hold 76% of the unfunded dollars.** In that test period, loans fell $5,797,550 short
   of what they asked for. Ranking loans by predicted risk and reviewing the top 10% (12,902 loans) reaches
   $4,402,525 of it, and 62% of the loans that went unfunded. Reviewing 10% of loans at random would reach about 10%.
 - **The model's PR-AUC is 0.374, against a base rate of 4.6%.** PR-AUC is a score from 0 to 1 for how well a model
   puts the loans that went unfunded near the top of its ranking. Only 4.6% of test loans went unfunded, so a model
-  ranking at random scores about 0.046. This one scores about eight times that. The terms are defined in "How I
-  built it".
+  ranking at random scores about 0.046. This one scores about eight times that.
 - **At the default cut-off of 0.5, it catches 86% of unfunded loans, and 19.4% of the loans it flags really go
   unfunded.** That is a review queue, not a verdict. The flagged loans are 26,388 loans (20.45% of the test set)
-  and hold 93.2% of the shortfall.
+  and hold 93.2% of the shortfall. A 0.5 cut-off flags about a fifth of loans, far more than the 4.6% that go
+  unfunded, because I trained with `class_weight="balanced"`, which gives the unfunded loans, taken together,
+  the same total weight as all the funded loans and pushes scores up.
 - **A second model predicts days to fund.** For loans that did get funded, it is off by 7.04 days on average,
-  against 8.08 days for a guess of the training-period median.
+  against 8.08 days for a guess of the training-period median. The R² is 0.25, so the model explains about a
+  quarter of the variation in days to fund and the gain over the median guess is modest.
 
 | Loans reviewed, riskiest first | Loans | Shortfall reached | Share of shortfall | Unfunded loans reached |
 |---|---:|---:|---:|---:|
@@ -59,15 +61,17 @@ the platform.
 Validation PR-AUC is the score on a slice of the training period held back to choose between models, and test
 PR-AUC is the score on the later loans kept untouched. Logistic regression, random forest and LightGBM are three
 standard ways to learn a loan's risk from its features. Logistic regression weights each feature and adds them
-up, a random forest averages many decision trees, and LightGBM (step 6) adds trees one at a time.
+up, a random forest averages many decision trees, and LightGBM adds trees one at a time, each fixing the errors
+of the last.
+
 ## How I built it
 
 The steps follow the order of the work; the notebook section for each is in brackets. All of it is in
-`Kiva_Loans_Microfinance_Analytics.ipynb`. Each term is defined where it first appears.
+`Kiva_Loans_Microfinance_Analytics.ipynb`.
 
 1. **Load and clean the data** (Prepare Data, sections 1 and 2). Three CSV files, each read by a `wrangle` function
    so the cleaning lives in one place. `wrangle` reads the loans, parses the borrower genders (many loans are
-   group loans), adds the target, and attaches a poverty score to each loan. A loan is "fully funded" when it
+   group loans), adds the target, and attaches two poverty scores to each loan (defined in step 4). A loan is "fully funded" when it
    raised at least what it asked for.
 2. **Define "at risk"** (section 3). The data is a snapshot, so a loan posted a week before the end may still be
    raising money. Among loans in their first week, only 16% are funded, against 94% for the oldest loans.
@@ -82,14 +86,16 @@ The steps follow the order of the work; the notebook section for each is in brac
 4. **Features, including a poverty score** (sections 4 to 6, `src/features.py`). Only facts known when a loan is
    posted: amount, term, repayment schedule, sector, country, borrower gender mix, posting month and weekday, words
    from the loan's stated purpose, and the poverty score of its region (the Multidimensional Poverty Index, MPI,
-   from 0 to 1, higher is poorer). A guard in `src/features.py` raises an error if a column that only exists after
+   from 0 to 1, higher is poorer). There are two versions. The **exact** score matches a loan's country and region
+   name to the poverty file and reaches 50,955 loans (7.6%). The **linked** score goes through Kiva's own table
+   `loan_themes_by_region.csv`, which assigns each region to a poverty province, and reaches 70.9% of loans. The
+   model uses the exact score, for the reason given after step 12. A guard in `src/features.py` raises an error if a column that only exists after
    funding (funded time, lender count, funded amount) reaches the model.
 5. **Split by date** (section 6). Models fit on the earliest 80% of loans by posting date (516,066 loans), and the
    latest 20% (129,017) is the test set. Inside the training period, the last 103,213 loans form a validation
    slice used to choose between models. Text vocabulary and missing-value medians are learned only from the loans
    each stage trains on.
-6. **Four models, chosen on validation** (section 8). Logistic regression, random forest, LightGBM (many small
-   decision trees, each fixing the errors of the last), and LightGBM with a time-trend column (months since the
+6. **Four models, chosen on validation** (section 8). Logistic regression, random forest, LightGBM, and LightGBM with a time-trend column (months since the
    first loan). The last one scored best on validation (0.490). Plain LightGBM scores higher on the test period
    (0.386), but picking it for that reason would make the test set a second validation set, so I kept the choice
    made on validation and report both.
@@ -104,10 +110,15 @@ The steps follow the order of the work; the notebook section for each is in brac
 8. **Check it over time** (section 9). Walk-forward validation trains on everything before a cut-off, scores the
    next block of loans, then moves the cut-off on. Over four later windows of about 64,508 loans, PR-AUC runs from
    0.394 to 0.503, between 4.8 and 14.3 times the random score as the unfunded share falls from 8.3% to 2.9%.
-9. **Calibration** (section 9). A model is calibrated when its scores can be read as probabilities. I tried
-   isotonic regression, which learns a staircase from score to probability. It made the Brier score (the average
-   squared gap between predicted probability and outcome; lower is better) worse, from 0.0345 to 0.0371, so the
-   scores are used as a ranking only.
+9. **Calibration** (section 9). A model is calibrated when its scores can be read as probabilities. A calibrator
+   must learn from loans the model did not train on, and the final model trained on the validation slice, so I
+   tested calibration on the earlier version of the chosen model, the one fitted before that slice. Isotonic
+   regression, which learns a staircase from score to probability, made its Brier score (the average squared gap
+   between predicted probability and outcome; lower is better) worse on the test period, from 0.0345 to 0.0371
+   (a constant forecast scores 0.0465). Its scores averaged 5.0% against 4.6% actual, and 7.8% once calibrated.
+   The reported model, trained up to 27 Oct 2016, ranks loans almost the same way (rank correlation 0.959) but
+   its scores average 22.4% against 4.6% actual, because the balanced class weights and the time trend move the
+   whole scale. That is why its scores are used as a ranking only, not as probabilities.
 
    ![Calibration curve of the model's scores against the share of loans that actually went unfunded](figs/calibration.png)
 
@@ -126,11 +137,11 @@ The steps follow the order of the work; the notebook section for each is in brac
     **MAE** (mean absolute error) is the average gap between prediction and truth, here 7.04 days against 8.08 for
     the median guess.
 
-Does the risk fall hardest on the poorest regions? Mostly no. Matching loan regions to poverty-index provinces
-through Kiva's own link reaches 70.9% of loans. By poverty fifth, the share fully funded is 92.1%, 97.1%, 96.2%,
+Does the risk fall hardest on the poorest regions? Mostly no. The linked score (70.9% of loans) lets this be
+checked well beyond the 7.6% the exact score reaches. By poverty fifth, the share fully funded is 92.1%, 97.1%, 96.2%,
 95.8% and 93.0% from least poor to poorest, so risk is somewhat higher at both ends and not concentrated on the
-poorest. The notebook also tried the wider poverty score in the model under a rule set beforehand (adopt only if
-validation PR-AUC clearly improves). It fell from 0.4902 to 0.4880, so the model keeps the narrower exact-match score.
+poorest. The notebook also tried the linked score in the model under a rule set beforehand (adopt only if
+validation PR-AUC improves by a margin fixed in advance). It fell from 0.4902 to 0.4880, so the model keeps the exact score.
 
 ![World map of poverty-index provinces, coloured by the share of loans fully funded and sized by number of settled loans](figs/geo_funding_vs_poverty.png)
 
@@ -141,17 +152,21 @@ validation PR-AUC clearly improves). It fell from 0.4902 to 0.4880, so the model
 - **Recent loans looked like failures.** Charting funded rate by loan age showed 16% funded in the first week and
   94% for the oldest loans, which can only mean loans still raising money. I excluded loans within 60 days of the
   snapshot and tested out of time (commit "Exclude censored loans, test out of time and fit preprocessing on train only").
-- **The default PR-AUC scores the wrong class.** `average_precision_score` scores the "funded" class, whose floor
-  is about 95%, so it looks excellent whatever the model does. The notebook flips labels and scores to score the
-  unfunded class and prints both (funded class 0.9958 against the headline 0.3742).
+- **The default PR-AUC scores the wrong class.** The target codes "funded" as 1, and `average_precision_score`
+  scores label 1, so by default it measured how well the model finds funded loans. Their floor is about 95%, so
+  it looks excellent whatever the model does. The notebook flips labels and scores to score the unfunded class
+  and prints both (funded class 0.9958 against the headline 0.3742).
 - **A leakage guard I had only written in prose.** Funded time, lender count and funded amount exist only because
   a loan was funded, and leaking them raises the score instead of raising an error. The guard now runs before and
   after one-hot encoding (turning each category into its own 0/1 column), since encoding renames columns, and is covered by tests (commit "Extract the leakage guard into tested code").
 - **Calibration made things worse.** Fitting it on a validation slice where 9.6% of loans went unfunded
-  over-predicted a test period where 4.6% did: mean calibrated score 7.8%, Brier 0.0345 to 0.0371. I changed the
-  test to check what calibration guarantees (commit "Check what calibration guarantees") and used ranks.
+  over-predicted a test period where 4.6% did: mean calibrated score 7.8%, Brier 0.0345 to 0.0371. My first
+  notebook check asserted that calibration lowers the Brier score, which calibration does not guarantee on a
+  later period. I replaced it with checks that hold: calibrated values stay between 0 and 1, and the model's
+  order of loans is kept (commit "Check what calibration guarantees, not that it must improve the Brier score").
+  The review list uses ranks.
 - **The first poverty join reached 7.6% of loans.** Loan regions are towns and the poverty index is by province, so
-  an exact match failed for most loans. That is why I added Kiva's own link, and why I tested whether it helped
+  an exact match failed for most loans. That is why I added the linked score, and why I tested whether it helped
   the model (it did not). The poverty file also had bad map points: Herat in Afghanistan sat in South-East Asia.
   `find_misplaced` drops points far from the rest of their country and keeps the MPI values (94 points flagged).
 
@@ -161,8 +176,8 @@ validation PR-AUC clearly improves). It fell from 0.4902 to 0.4880, so the model
 |---|---|---:|---|
 | [Data Science for Good: Kiva Crowdfunding](https://www.kaggle.com/datasets/kiva/data-science-for-good-kiva-crowdfunding) on Kaggle: `kiva_loans.csv`, `kiva_mpi_region_locations.csv`, `loan_themes_by_region.csv` | Kaggle's terms for the "Data Science for Good: Kiva Crowdfunding" dataset | 671,205 loans | snapshot ends 26 Jul 2017 |
 
-It is real Kiva data, not simulated. The CSVs are not committed: put them in `data/`. The test period is the 129,017
-loans posted after 27 Oct 2016, 4.6% of them unfunded. The exact poverty match covers 50,955 loans (7.6%).
+The CSVs are not committed: put them in `data/`. The test period is the 129,017
+loans posted after 27 Oct 2016, 4.6% of them unfunded. The exact poverty score covers 50,955 loans (7.6%).
 
 ## Limits
 
