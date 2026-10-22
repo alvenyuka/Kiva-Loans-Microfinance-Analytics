@@ -1,0 +1,8 @@
+# What CI installs. The tests need no dataset, model, plotting or notebook
+# packages: only the leakage guard, the funding target, the gender parsing,
+# the shortfall arithmetic and the README-numbers check, which use numpy and
+# pandas. These are the versions of the recorded run in outputs/results.json
+# (provenance.packages). Both have wheels for every Python in the CI matrix.
+numpy==2.4.6
+pandas==3.0.3
+pytest==8.3.3
