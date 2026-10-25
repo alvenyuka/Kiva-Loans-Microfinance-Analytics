@@ -18,6 +18,11 @@ or cancel. A platform or impact funder can help a few loans (feature them, add m
 about the terms) but not all of them. So the question is: which new loans will probably fall short, and can that be
 known when the loan is posted?
 
+The ranking is for whoever decides, each day, which new loans get that help: a platform's partner-support team or an
+impact funder's matching-fund desk. They cannot look at every loan, so they work down the list from the riskiest end
+as far as their time allows. A loan they skip that then falls short costs a borrower money; a loan they review that
+would have been funded anyway costs only their time.
+
 The data is the public Kiva dataset on Kaggle: 671,205 loans posted up to 26 Jul 2017. Details are in "Data".
 
 ## Results
@@ -27,12 +32,13 @@ choice of model. All figures are in `outputs/results.json`.
 
 - **The riskiest 10% of loans hold 76% of the unfunded dollars.** In that test period, loans fell $5,797,550 short
   of what they asked for. Ranking loans by predicted risk and reviewing the top 10% (12,902 loans) reaches
-  $4,402,525 of it, and 62% of the loans that went unfunded. Reviewing 10% of loans at random would reach about 10%.
+  $4,402,525 of it. That list holds 62% of the loans that went unfunded (its recall), and 28.7% of the loans on it
+  went unfunded (its precision). Reviewing 10% of loans at random would reach about 10% of the shortfall.
 - **The model's PR-AUC is 0.374, against a base rate of 4.6%.** PR-AUC is a score from 0 to 1 for how well a model
   puts the loans that went unfunded near the top of its ranking. Only 4.6% of test loans went unfunded, so a model
   ranking at random scores about 0.046. This one scores about eight times that.
-- **At the default cut-off of 0.5, it catches 86% of unfunded loans, and 19.4% of the loans it flags really go
-  unfunded.** That is a review queue, not a verdict. The flagged loans are 26,388 loans (20.45% of the test set)
+- **At the default cut-off of 0.5, it catches 86% of unfunded loans at a precision of 19.4%: about one flagged loan
+  in five really goes unfunded.** That is a review queue, not a verdict. The flagged loans are 26,388 loans (20.45% of the test set)
   and hold 93.2% of the shortfall. A 0.5 cut-off flags about a fifth of loans, far more than the 4.6% that go
   unfunded, because I trained with `class_weight="balanced"`, which gives the unfunded loans, taken together,
   the same total weight as all the funded loans and pushes scores up.
@@ -40,16 +46,16 @@ choice of model. All figures are in `outputs/results.json`.
   against 8.08 days for a guess of the training-period median. The R² is 0.25, so the model explains about a
   quarter of the variation in days to fund and the gain over the median guess is modest.
 
-| Loans reviewed, riskiest first | Loans | Shortfall reached | Share of shortfall | Unfunded loans reached |
-|---|---:|---:|---:|---:|
-| 5% | 6,451 | $3,334,700 | 58% | 40% |
-| **10%** | **12,902** | **$4,402,525** | **76%** | **62%** |
-| 20% | 25,803 | $5,384,850 | 93% | 85% |
-| 30% | 38,705 | $5,664,000 | 98% | 95% |
+| Loans reviewed, riskiest first | Loans | Shortfall reached | Share of shortfall | Unfunded loans reached (recall) | Reviewed loans that went unfunded (precision) |
+|---|---:|---:|---:|---:|---:|
+| 5% | 6,451 | $3,334,700 | 58% | 40% | 37.3% |
+| **10%** | **12,902** | **$4,402,525** | **76%** | **62%** | **28.7%** |
+| 20% | 25,803 | $5,384,850 | 93% | 85% | 19.7% |
+| 30% | 38,705 | $5,664,000 | 98% | 95% | 14.5% |
 
 Shortfall is the requested amount minus the amount funded, per loan, in US dollars. The table comes from
-`src/impact.py`, run on the test period. It measures money borrowers did not receive through Kiva, not a loss to
-the platform.
+`src/impact.py`, run on the test period; the precision column divides its count of unfunded loans reached by the
+loans reviewed. It measures money borrowers did not receive through Kiva, not a loss to the platform.
 
 | Model | Validation PR-AUC | Test PR-AUC |
 |---|---:|---:|
@@ -205,8 +211,9 @@ python -m pytest              # no dataset needed
 jupyter nbconvert --to notebook --execute Kiva_Loans_Microfinance_Analytics.ipynb --output Kiva_Loans_Microfinance_Analytics.ipynb --ExecutePreprocessor.timeout=3600
 ```
 
-The notebook writes `outputs/results.json` and the charts in `figs/`. `tests/test_readme_numbers.py` fails if this
-page quotes a number that is not in that file.
+The notebook writes `outputs/results.json` and the charts in `figs/`. `tests/test_readme_numbers.py` reads every
+number on this page in order and checks each one against that file, the executed notebook, or a short list of fixed
+numbers (step and section numbers, the 60-day rule), so a mistyped figure anywhere fails the tests.
 
 ## Project structure
 
