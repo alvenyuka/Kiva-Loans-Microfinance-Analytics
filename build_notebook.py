@@ -3347,7 +3347,8 @@ step("2.27", "Draw the calibration curve",
      "Plot the predicted chance against the share that actually went unfunded, in ten equal-size bins, for the raw and "
      "calibrated scores.",
      "how do you read a calibration curve?",
-     "Points on the dotted diagonal are perfectly calibrated; points below it mean the model over-predicts.")
+     "Points on the dotted diagonal are perfectly calibrated; points below it mean the model over-predicts, and the "
+     "calibrated line has fewer points because tied values merge bins.")
 
 code(r"""
 # Observed share and mean prediction in ten equal-size bins, raw scores
@@ -3379,8 +3380,9 @@ plt.show()
 """)
 
 check(r"""
-# Ten bins for each line
-assert len(raw_predicted) == 10 and len(cal_predicted) == 10, (len(raw_predicted), len(cal_predicted))
+# The raw scores fill ten bins; the calibrated ones only eight, because isotonic steps give many loans the same
+# value and equal-size bins with the same edges merge
+assert (len(raw_predicted), len(cal_predicted)) == (10, 8), (len(raw_predicted), len(cal_predicted))
 # This run wrote the chart the README shows
 assert Path("figs/calibration.png").stat().st_mtime > RUN_STARTED, "figs/calibration.png was not written by this run"
 """)
