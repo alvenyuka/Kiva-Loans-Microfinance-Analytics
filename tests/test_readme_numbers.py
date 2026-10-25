@@ -227,39 +227,39 @@ def expected_numbers():
         seq += [result(f"{scores['validation_pr_auc_at_risk']:.3f}"), result(f"{scores['test_pr_auc_at_risk']:.3f}")]
 
     # How I built it, step 1
-    seq += [fixed("1", "notebook section"), fixed("2", "notebook section"), fixed("4", "README step number")]
+    # (section labels such as "1A" are letters and digits, so they are not read as numbers)
+    seq += [fixed("4", "README step number")]
     # Step 2: censoring
-    seq += [fixed("3", "notebook section"), result(pct(first_week)), result(pct(oldest)),
+    seq += [result(pct(first_week)), result(pct(oldest)),
             result(str(data["censor_days"])), result(count(data["recent_loans_excluded"])),
             result(pct(data["recent_loans_excluded_share"], 1)), result(count(data["settled_loans"])),
             result(pct(data["settled_not_funded_share"], 1)), result(pct(test_share, 1))]
     # Step 3: the baseline
-    seq += [fixed("7", "notebook section"), baseline]
+    seq += [baseline]
     # Step 4: features and the two poverty scores
-    seq += [fixed("4", "notebook section"), fixed("6", "notebook section"),
-            fixed("0", "MPI range"), fixed("1", "MPI range"),
+    seq += [fixed("0", "MPI range"), fixed("1", "MPI range"),
             result(count(data["mpi_matched_loans"])), result(pct(data["mpi_coverage"], 1)),
             result(pct(linked["loans_with_linked_mpi_share"], 1)), fixed("12", "README step number")]
     # Step 5: the date split
-    seq += [fixed("6", "notebook section"), result(pct(split["train_share"])), result(count(split["train_loans"])),
+    seq += [result(pct(split["train_share"])), result(count(split["train_loans"])),
             result(pct(1 - split["train_share"])), result(count(split["test_loans"])),
             result(count(split["validation_loans"]))]
     # Step 6: four models chosen on validation
-    seq += [fixed("8", "notebook section"), result(f"{chosen['validation_pr_auc_at_risk']:.3f}"),
+    seq += [result(f"{chosen['validation_pr_auc_at_risk']:.3f}"),
             result(f"{plain['test_pr_auc_at_risk']:.3f}")]
     # Step 7: precision at three recall levels
-    seq += [fixed("9", "notebook section"), result(pct(precision_at["0.25"], 1)),
+    seq += [result(pct(precision_at["0.25"], 1)),
             result(pct(precision_at["0.50"], 1)), result(pct(precision_at["0.75"], 1))]
     seq += [result(pct(test_share, 1))]                          # PR curve description
     seq += [result(pct(test_share, 1))]                          # PR curve caption
     # Step 8: walk-forward
-    seq += [fixed("9", "notebook section"), result(count(walk["windows"][0]["test_loans"])),
+    seq += [result(count(walk["windows"][0]["test_loans"])),
             result(f"{walk['pr_auc_at_risk_min']:.3f}"), result(f"{walk['pr_auc_at_risk_max']:.3f}"),
             result(f"{walk['lift_over_random_min']:.1f}"), result(f"{walk['lift_over_random_max']:.1f}"),
             result(pct(walk["windows"][0]["not_funded_share"], 1)),
             result(pct(walk["windows"][-1]["not_funded_share"], 1))]
     # Step 9: calibration
-    seq += [fixed("9", "notebook section"), result(f"{calibration['brier_raw']:.4f}"),
+    seq += [result(f"{calibration['brier_raw']:.4f}"),
             result(f"{calibration['brier_calibrated']:.4f}"), result(f"{calibration['brier_constant']:.4f}"),
             result(pct(calibration["mean_predicted_raw"], 1)), result(pct(calibration["actual_unfunded_share"], 1)),
             result(pct(calibration["mean_predicted_calibrated"], 1)), result(day_month_year(split["train_end"])),
@@ -267,11 +267,9 @@ def expected_numbers():
             result(pct(calibration["mean_predicted_final_model"], 1)),
             result(pct(calibration["actual_unfunded_share"], 1))]
     # Step 10: drivers
-    seq += [fixed("11", "notebook section"), result(pct(terms[0], 1)), result(pct(terms[-1], 1))]
-    # Step 11: money impact
-    seq += [fixed("12", "notebook section")]
-    # Step 12: days to fund
-    seq += [fixed("10", "notebook section"), result(f"{days['mae_model_days']:.2f}"),
+    seq += [result(pct(terms[0], 1)), result(pct(terms[-1], 1))]
+    # Step 12: days to fund (step 11, money impact, quotes no number)
+    seq += [result(f"{days['mae_model_days']:.2f}"),
             result(f"{days['mae_baseline_days']:.2f}")]
     # Poverty paragraph
     seq += [result(pct(linked["loans_with_linked_mpi_share"], 1)), result(pct(data["mpi_coverage"], 1))]

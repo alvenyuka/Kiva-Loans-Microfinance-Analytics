@@ -3,7 +3,33 @@
 All notable changes to this project are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Every figure quoted
-below is in `outputs/results.json`.
+below is in, or worked out from, `outputs/results.json`.
+
+## [1.1.0] - 2026-10-25
+
+The notebook becomes a guided build a newcomer can follow cell by cell. No
+result changes: every value in `outputs/results.json` equals 1.0.0 except the
+run record (`provenance`), and the test PR-AUC is still 0.374 against a 4.6%
+base rate.
+
+### Changed
+
+- `Kiva_Loans_Microfinance_Analytics.ipynb` is now written by
+  `build_notebook.py`. It has three parts, Prepare Data (1A to 1F), Build Model
+  (2A to 2D) and Communicate Results (3A to 3C), of 122 numbered steps. Each step
+  has one instruction, a one-line Concept, one small code cell with a
+  plain-words comment above every top-level statement, printed output, and a
+  "Check your work" cell whose expected values come from the executed run.
+- The notebook opens with the question, the data, who acts on the ranking and
+  the headline, and closes with what was built, the answers, limitations, next
+  steps and a glossary.
+- New steps: the majority-class trap shown on a constant score (Step 2.2), the
+  review list's recall and precision for each borrower group (Step 2.21), and
+  each review list's precision next to its recall in the shortfall table (Step
+  3.11). `find_misplaced` and the text-flag helper are tried on made-up inputs
+  before they run on the data.
+- README and `docs/METHODOLOGY.md` point at the new section and step labels and
+  name the builder as the source; the README states the new run.
 
 ## [1.0.0] - 2026-10-22
 
@@ -54,4 +80,5 @@ October 2026.
   the user of the ranking (on Kiva, lenders are members of the public), and the
   leakage sentences name all four post-funding columns, disbursed time included.
 
+[1.1.0]: https://github.com/alvenyuka/Kiva-Loans-Microfinance-Analytics/releases/tag/v1.1.0
 [1.0.0]: https://github.com/alvenyuka/Kiva-Loans-Microfinance-Analytics/releases/tag/v1.0.0

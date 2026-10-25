@@ -73,23 +73,25 @@ of the last.
 ## How I built it
 
 The steps follow the order of the work; the notebook section for each is in brackets. All of it is in
-`Kiva_Loans_Microfinance_Analytics.ipynb`.
+`Kiva_Loans_Microfinance_Analytics.ipynb`, a guided build written by `build_notebook.py`: numbered steps, each with
+one instruction, one small code cell commented line by line, its printed output and a check that stops the run if the
+step went wrong.
 
-1. **Load and clean the data** (Prepare Data, sections 1 and 2). Three CSV files, each read by a `wrangle` function
+1. **Load and clean the data** (Prepare Data, sections 1A and 1B). Three CSV files, each read by a `wrangle` function
    so the cleaning lives in one place. `wrangle` reads the loans, parses the borrower genders (many loans are
    group loans), adds the target, and attaches two poverty scores to each loan (defined in step 4). A loan is "fully funded" when it
    raised at least what it asked for.
-2. **Define "at risk"** (section 3). The data is a snapshot, so a loan posted a week before the end may still be
+2. **Define "at risk"** (section 1C). The data is a snapshot, so a loan posted a week before the end may still be
    raising money. Among loans in their first week, only 16% are funded, against 94% for the oldest loans.
    Counting those as failures would be wrong, so I drop loans posted within 60 days of the snapshot (26,122 loans,
    3.9%). Of the 645,083 that remain, 6.4% are unfunded. The **base rate** is the share of loans in a group that
    have the outcome you are looking for: 4.6% of test loans were unfunded.
-3. **A baseline** (section 7). A model that gives every loan the same score. It sets the number any real model has
+3. **A baseline** (section 2A). A model that gives every loan the same score. It sets the number any real model has
    to beat. **Recall** is the share of all unfunded loans that were flagged. **Precision** is the share of flagged
    loans that really went unfunded. **PR-AUC** is the area under the precision-recall curve: rank loans from
    riskiest to safest and walk down the list, noting precision and recall at each step. A random model scores the
    base rate, so on the validation slice the baseline scores 0.0962.
-4. **Features, including a poverty score** (sections 4 to 6, `src/features.py`). Only facts known when a loan is
+4. **Features, including a poverty score** (sections 1D to 1F, `src/features.py`). Only facts known when a loan is
    posted: amount, term, repayment schedule, sector, country, borrower gender mix, posting month and weekday, words
    from the loan's stated purpose, and the poverty score of its region (the Multidimensional Poverty Index, MPI,
    from 0 to 1, higher is poorer). There are two versions. The **exact** score matches a loan's country and region
@@ -97,15 +99,15 @@ The steps follow the order of the work; the notebook section for each is in brac
    `loan_themes_by_region.csv`, which assigns each region to a poverty province, and reaches 70.9% of loans. The
    model uses the exact score, for the reason given after step 12. A guard in `src/features.py` raises an error if a column that only exists after
    funding (funded time, disbursed time, lender count, funded amount) reaches the model.
-5. **Split by date** (section 6). Models fit on the earliest 80% of loans by posting date (516,066 loans), and the
+5. **Split by date** (section 1F). Models fit on the earliest 80% of loans by posting date (516,066 loans), and the
    latest 20% (129,017) is the test set. Inside the training period, the last 103,213 loans form a validation
    slice used to choose between models. Text vocabulary and missing-value medians are learned only from the loans
    each stage trains on.
-6. **Four models, chosen on validation** (section 8). Logistic regression, random forest, LightGBM, and LightGBM with a time-trend column (months since the
+6. **Four models, chosen on validation** (section 2B). Logistic regression, random forest, LightGBM, and LightGBM with a time-trend column (months since the
    first loan). The last one scored best on validation (0.490). Plain LightGBM scores higher on the test period
    (0.386), but picking it for that reason would make the test set a second validation set, so I kept the choice
    made on validation and report both.
-7. **The precision-recall curve and the threshold** (section 9). A **threshold** is the score above which a loan is
+7. **The precision-recall curve and the threshold** (section 2C). A **threshold** is the score above which a loan is
    flagged. Moving it trades recall for precision: catching a quarter of unfunded loans comes with 42.9%
    precision, half with 32.6%, three quarters with 24.4%.
 
@@ -113,10 +115,10 @@ The steps follow the order of the work; the notebook section for each is in brac
 
    *Notice how far the curve stays above the 4.6% base rate. Where to cut is a choice about how many loans a
    team can review.*
-8. **Check it over time** (section 9). Walk-forward validation trains on everything before a cut-off, scores the
+8. **Check it over time** (section 2C). Walk-forward validation trains on everything before a cut-off, scores the
    next block of loans, then moves the cut-off on. Over four later windows of about 64,508 loans, PR-AUC runs from
    0.394 to 0.503, between 4.8 and 14.3 times the random score as the unfunded share falls from 8.3% to 2.9%.
-9. **Calibration** (section 9). A model is calibrated when its scores can be read as probabilities. A calibrator
+9. **Calibration** (section 2C). A model is calibrated when its scores can be read as probabilities. A calibrator
    must learn from loans the model did not train on, and the final model trained on the validation slice, so I
    tested calibration on the earlier version of the chosen model, the one fitted before that slice. Isotonic
    regression, which learns a staircase from score to probability, made its Brier score (the average squared gap
@@ -129,7 +131,7 @@ The steps follow the order of the work; the notebook section for each is in brac
    ![Calibration curve of the model's scores against the share of loans that actually went unfunded](figs/calibration.png)
 
    *The scores rank loans well but are not probabilities, so the review list uses the order, not the values.*
-10. **What drives the risk** (section 11). SHAP splits each score into the push from each feature. Loan term and
+10. **What drives the risk** (section 3A). SHAP splits each score into the push from each feature. Loan term and
     loan amount lead, ahead of the time trend and posting month. Short, small loans are funded more often: the
     shortest-term sixth of loans goes unfunded 0.3% of the time, the longest-term sixth 15.6%.
 
@@ -137,9 +139,9 @@ The steps follow the order of the work; the notebook section for each is in brac
 
     *Term and amount move the score about twice as much as the time trend and far more than country or sector, and
     they are the two a field partner can change.*
-11. **Money impact** (section 12, `src/impact.py`). Rank test loans by risk and measure the shortfall reached by
+11. **Money impact** (section 3B, `src/impact.py`). Rank test loans by risk and measure the shortfall reached by
     reviewing the top slices. This gives the table in "Results".
-12. **Days to fund** (section 10). A regression on funded loans, which predicts a number rather than a yes or no.
+12. **Days to fund** (section 2D). A regression on funded loans, which predicts a number rather than a yes or no.
     **MAE** (mean absolute error) is the average gap between prediction and truth, here 7.04 days against 8.08 for
     the median guess.
 
@@ -208,6 +210,7 @@ The recorded run's Python and package versions are in `outputs/results.json`. Ma
 pip install -r requirements.txt
 python -m pytest              # no dataset needed
 # put the three CSV files in ./data, then:
+python build_notebook.py      # writes the notebook from its source
 jupyter nbconvert --to notebook --execute Kiva_Loans_Microfinance_Analytics.ipynb --output Kiva_Loans_Microfinance_Analytics.ipynb --ExecutePreprocessor.timeout=3600
 ```
 
@@ -218,7 +221,8 @@ numbers (step and section numbers, the 60-day rule), so a mistyped figure anywhe
 ## Project structure
 
 ```
-Kiva_Loans_Microfinance_Analytics.ipynb   the analysis, executed end to end
+build_notebook.py                         writes the notebook; edit this, not the .ipynb
+Kiva_Loans_Microfinance_Analytics.ipynb   the guided analysis, executed end to end
 src/features.py                           leakage guard, funding target, gender parsing
 src/impact.py                             funding-shortfall capture
 outputs/results.json                      every figure above, package versions, git commit
