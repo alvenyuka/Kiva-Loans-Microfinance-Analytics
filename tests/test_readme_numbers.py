@@ -29,6 +29,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 README = (ROOT / "README.md").read_text(encoding="utf-8")
+# The README with every run of spaces and line breaks made one space, for whole-sentence checks
+FLAT_README = " ".join(README.split())
 NOTEBOOK_FILE = ROOT / "Kiva_Loans_Microfinance_Analytics.ipynb"
 
 with open(ROOT / "outputs" / "results.json", encoding="utf-8") as results_file:
@@ -198,7 +200,7 @@ def expected_numbers():
     seq += [result(count(split["test_loans"]))]
     # Bullet 1: the riskiest 10%
     seq += [result(pct(c10["review_share"])), result(pct(c10["shortfall_covered_pct"])),
-            result(money(shortfall["test_total_usd"])), result(pct(c10["review_share"])),
+            result(pct(list_precision(c10), 1)), result(money(shortfall["test_total_usd"])), result(pct(c10["review_share"])),
             result(count(c10["loans_reviewed"])), result(money(c10["shortfall_covered_usd"])),
             result(pct(c10["unfunded_loans_covered_pct"])), result(pct(list_precision(c10), 1)),
             result(pct(c10["review_share"])), fixed("10", "a random 10% review reaches 10% of the shortfall")]
@@ -407,8 +409,9 @@ def test_headline_sentences():
     c10 = capture_row(0.1)
     test_share = RESULTS["split"]["not_funded_share"]["test"]
     assert f"{clf['test_pr_auc_at_risk']:.3f}" == "0.374" and f"{test_share:.1%}" == "4.6%"
-    assert f"**The riskiest 10% of loans hold {c10['shortfall_covered_pct']:.0%} of the unfunded dollars.**" in README
-    assert f"loans fell ${shortfall['test_total_usd']:,.0f} short" in README
+    assert (f"**The riskiest 10% of loans hold {c10['shortfall_covered_pct']:.0%} of the unfunded dollars, and "
+            f"{list_precision(c10):.1%} of them went unfunded (their precision).**") in FLAT_README
+    assert f"loans fell ${shortfall['test_total_usd']:,.0f} short" in FLAT_README
     assert (f"**The model's PR-AUC is {clf['test_pr_auc_at_risk']:.3f}, against a base rate of "
             f"{test_share:.1%}.**") in README
     assert (f"it catches {clf['at_risk_recall_at_0_5']:.0%} of unfunded loans at a precision of "
@@ -431,8 +434,11 @@ def test_decision_framing_names_who_acts():
 
 
 def test_post_funding_fields_are_named_as_excluded():
-    # The README names the columns the leakage guard keeps out of the model
-    assert "funded time, lender count, funded amount" in README
+    # The README names all four columns the leakage guard keeps out of the model, in both places
+    from features import LEAKY_COLUMNS
+    assert len(LEAKY_COLUMNS) == 4
+    assert "funded time, disbursed time, lender count, funded amount" in README
+    assert "Funded time, disbursed time, lender count and funded amount" in README
 
 
 def test_run_provenance_matches_results_file():
