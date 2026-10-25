@@ -381,8 +381,9 @@ assert {"loan_amount", "funded_amount", "borrower_genders", "posted_time"} <= se
 
 md("""
 Each row is one loan. `loan_amount` is what the borrower asked for and `funded_amount` what lenders put in;
-`borrower_genders` lists one entry per borrower; `posted_time` is when the request went up. Some columns, such as
-`funded_time` and `lender_count`, only exist once a loan has been funded. Section 1F keeps them out of the model.
+`borrower_genders` lists one entry per borrower; `posted_time` is when the request went up. Four columns are filled in
+only because a loan was funded: `funded_time`, `disbursed_time`, `lender_count` and `funded_amount`. Section 1F keeps all
+four out of the model.
 """)
 
 step("1.7", "Read the poverty file",
