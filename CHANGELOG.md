@@ -50,5 +50,8 @@ October 2026.
   next to every recall figure: the riskiest 10% of test loans hold 62% of the
   unfunded loans at 28.7% precision, and the shortfall table gains a precision
   column.
+- The README's opening line names the partner-support team or impact funder as
+  the user of the ranking (on Kiva, lenders are members of the public), and the
+  leakage sentences name all four post-funding columns, disbursed time included.
 
 [1.0.0]: https://github.com/alvenyuka/Kiva-Loans-Microfinance-Analytics/releases/tag/v1.0.0
