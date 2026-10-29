@@ -200,7 +200,7 @@ loans posted after 27 Oct 2016, 4.6% of them unfunded. The exact poverty score c
 - **Days to fund is truncated.** Recent loans still raising money have no value, so the target leans towards fast
   funding.
 - **A few loans older than 60 days may still have been fundraising.**
-- **The recorded run is from 19 Oct 2026**, 23 minutes and 4.7 GB of memory at peak.
+- **The recorded run is from 25 Oct 2026**, 30 minutes and 4.3 GB of memory at peak.
 
 ## How to run
 
